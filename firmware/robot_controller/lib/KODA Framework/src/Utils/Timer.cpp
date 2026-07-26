@@ -1,57 +1,64 @@
-#include<iostream>
 #include<Utils/Timer.h>
 
-Timer::Timer():seconds(0),shouldClose(false){}
-
+Timer::Timer():seconds(0),secondsToStop(0){}
 long Timer::GetSeconds(){
-    return seconds;
+    return seconds.load(std::memory_order_relaxed);
 }   
 
 float Timer::GetMinutes(){
-    return seconds/60.0f;
+    return seconds.load(std::memory_order_relaxed)/60.0f;
 }
 
 float Timer::GetHours(){
-    return seconds/3600.0f;
+    return seconds.load(std::memory_order_relaxed)/3600.0f;
 }
 
 void Timer::Run(){
-    while(!shouldClose){
-        seconds++;
+    while(true){
+        long currentSeconds = seconds.load(std::memory_order_relaxed);
+        long stopTime = secondsToStop.load(std::memory_order_relaxed);
+        long interval = callbackInterval.load(std::memory_order_relaxed);
+
+        if(stopTime > 0 && currentSeconds >= stopTime){
+            SetStopTime(0);
+            Pause(); 
+        }
+        
+        seconds.fetch_add(1, std::memory_order_relaxed);
+        
+        if (onTickCallback != nullptr && interval > 0) {    // onTickCallback some function that we pass through
+            long currentCount = callbackCounter.fetch_add(1, std::memory_order_relaxed) + 1; 
+            // basicaly will make juice from your brain, but
+            // we combine 3 steps into one, to guarantee that only WE use that "box". And storing old value, so we add 1 localy to achieve new val
+            // at least I`ve tried
+            if (currentCount >= interval) {
+                onTickCallback();   // using this passed function
+                callbackCounter.store(0, std::memory_order_relaxed); // zero our flag. Could i have this changed? Yes. How? Dunno. Do I want? Nope
+            }
+        }
+
         vTaskDelay(pdMS_TO_TICKS(1000));
     }
-    // if something will cause end of cycle - task should terminate itself
-    taskHandle = nullptr;
-    vTaskDelete(NULL);
 }
 
-// This is C-like thingy
-void Timer::Start(){
-    // "Exception"
-    if(taskHandle != nullptr) return;
+void Timer::SetTime(long time){
+    seconds.store(time, std::memory_order_relaxed);
+}
 
-    xTaskCreatePinnedToCore(
-        TaskPoster, // what to do
-        "Timer", // name
-        2048,   // stack size
-        this,   // object pointer
-        1,      // Priority
-        &taskHandle, // make freertos know how to access task
-        1       // which core
-    );
+void Timer::SetStopTime(long time){
+    secondsToStop.store(time, std::memory_order_relaxed);
+}
+
+void Timer::SetOnTick(std::function<void()> callback, long intervalSeconds = 1) {
+    Pause(); 
+    onTickCallback = callback;
+    callbackInterval.store(intervalSeconds, std::memory_order_relaxed);
+    callbackCounter.store(0, std::memory_order_relaxed);
+    Resume();
 }
 
 void Timer::Stop(){
-    if(taskHandle != nullptr){
-        shouldClose = true;
-        // vTaskDelete(taskHandle);
-        // taskHandle = NULL;
-    }
-}
-
-void Timer::TaskPoster(void* config){
-    // Get task from abstract 
-    Timer* instance = static_cast<Timer*>(config);
-    // Make it work, lmao
-    instance-> Run();
+    SetTime(0);
+    SetStopTime(0);
+    Pause();
 }

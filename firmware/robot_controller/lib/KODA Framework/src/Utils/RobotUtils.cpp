@@ -23,7 +23,7 @@ void Robot::FullStop(){
 }
 
 long Robot::CheckDistance(){
-    return US.GetDistance();
+    return US.StartScan();
 }
 
 void Robot::TurnLeft(){

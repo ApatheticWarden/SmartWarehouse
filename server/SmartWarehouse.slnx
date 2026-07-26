@@ -1,3 +1,9 @@
 <Solution>
-  <Project Path="SmartWarehouse/SmartWarehouse.csproj" />
+  <Project Path="SmartWarehouse.Database/SmartWarehouse.Database.csproj" />
+  <Project Path="SmartWarehouse.Models/SmartWarehouse.Models.csproj" />
+  <Project Path="SmartWarehouse.Services/SmartWarehouse.Services.csproj" Id="78a0a4c9-c419-447f-8c03-9088c58c21ad" />
+  <Project Path="SmartWarehouse/SmartWarehouse.csproj">
+    <BuildDependency Project="SmartWarehouse.Database/SmartWarehouse.Database.csproj" />
+    <BuildDependency Project="SmartWarehouse.Models/SmartWarehouse.Models.csproj" />
+  </Project>
 </Solution>

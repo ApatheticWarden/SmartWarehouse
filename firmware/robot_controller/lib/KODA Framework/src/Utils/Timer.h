@@ -1,30 +1,34 @@
 #include <freertos/FreeRTOS.h>
 #include <freertos/task.h>
+#include <atomic>
+#include <Utils/Task.h>
+#include <functional>
 
 #ifndef TIMER_H
 #define TIMER_H
 
-class Timer{
-    volatile long seconds;     // do not optimize this
-    volatile bool shouldClose; // do not optimize this
+class Timer: public Task{
+    std::atomic<long> seconds;      
+    // as ai says: volatile doesnt grant thread durability
+    // So we should use atomic
+    // P.S. It should sync our cores 
+    std::atomic<long> secondsToStop;
 
-    TaskHandle_t taskHandle = nullptr; // reference
+    std::function<void()> onTickCallback = nullptr;
 
-    // idk how to explain this rn
-    static void TaskPoster(void* config);
+    std::atomic<long> callbackInterval{0}; 
+    std::atomic<long> callbackCounter{0};
 
-    // Definition what to do (in class)
-    void Run();
+    void Run() override;
     public:
         Timer();
-
         long GetSeconds();
         float GetMinutes();
         float GetHours();
-        void Start();
+        void SetStopTime(long time);
+        void SetTime(long time);
         void Stop();
-        void Pause();
-        void Resume();
+        void SetOnTick(std::function<void()> callback, long intervalSeconds);
 };
 
 #endif

@@ -18,34 +18,31 @@ UltraSonic US1(TRIGGER_PIN, ECHO_PIN);
 
 Robot ROBOT(Left, Right, US1);
 
-
 bool moving = false;
 bool obstacle = false;
+
 void setup() {
     Serial.begin(115200);
     ROBOT.Assemble();
 }
 
+unsigned long lastSonarTrigger = 0;
+
 void loop() {
-    // rm delay() 
-    // make millis here
-    long dist = ROBOT.CheckDistance();
+    unsigned long currentMillis = millis();
 
-    if(dist < 30){
-        obstacle = true;
-    }else{
-        obstacle = false;
+    if (currentMillis - lastSonarTrigger >= 60){
+        ROBOT.US.SendTrigg();
+        lastSonarTrigger = currentMillis;
     }
 
-    if(!moving && !obstacle){
-        ROBOT.MoveForward();
-        moving = true;
-    }else if(moving && obstacle){
+    long dist = ROBOT.CheckDistance(); // Get "prev." distance
+
+    if( dist > 0 && dist < 30){
+        Serial.print("OBSTACLE");
         ROBOT.FullStop();
-        moving = false;
+    }else{
+        ROBOT.MoveForward();
     }
 
-    Serial.println(dist);
-    
-    delay(600);
 }
