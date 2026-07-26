@@ -1,0 +1,222 @@
+{
+  "main": {
+    "id": "256e0fa47a3c784c",
+    "type": "split",
+    "children": [
+      {
+        "id": "aad622e48bbe7a78",
+        "type": "tabs",
+        "children": [
+          {
+            "id": "c23e491f7b0e257a",
+            "type": "leaf",
+            "state": {
+              "type": "graph",
+              "state": {},
+              "icon": "lucide-git-fork",
+              "title": "Graph view"
+            }
+          }
+        ]
+      }
+    ],
+    "direction": "vertical"
+  },
+  "left": {
+    "id": "1a46521256f67ca9",
+    "type": "split",
+    "children": [
+      {
+        "id": "5b5520cb3feae7bf",
+        "type": "tabs",
+        "children": [
+          {
+            "id": "6a8789a72ff3d135",
+            "type": "leaf",
+            "state": {
+              "type": "file-explorer",
+              "state": {
+                "sortOrder": "alphabetical",
+                "autoReveal": false
+              },
+              "icon": "lucide-folder-closed",
+              "title": "Files"
+            }
+          },
+          {
+            "id": "50e2acf31fe67388",
+            "type": "leaf",
+            "state": {
+              "type": "search",
+              "state": {
+                "query": "",
+                "matchingCase": false,
+                "explainSearch": false,
+                "collapseAll": false,
+                "extraContext": false,
+                "sortOrder": "alphabetical"
+              },
+              "icon": "lucide-search",
+              "title": "Search"
+            }
+          },
+          {
+            "id": "07f4ac1d62ef760f",
+            "type": "leaf",
+            "state": {
+              "type": "bookmarks",
+              "state": {},
+              "icon": "lucide-bookmark",
+              "title": "Bookmarks"
+            }
+          }
+        ]
+      }
+    ],
+    "direction": "horizontal",
+    "width": 300
+  },
+  "right": {
+    "id": "8188e0c9cbfa825d",
+    "type": "split",
+    "children": [
+      {
+        "id": "fba4194602b48b62",
+        "type": "tabs",
+        "children": [
+          {
+            "id": "f1d4886b8b637447",
+            "type": "leaf",
+            "state": {
+              "type": "backlink",
+              "state": {
+                "file": "MAIN.canvas",
+                "collapseAll": false,
+                "extraContext": false,
+                "sortOrder": "alphabetical",
+                "showSearch": false,
+                "searchQuery": "",
+                "backlinkCollapsed": false,
+                "unlinkedCollapsed": true
+              },
+              "icon": "links-coming-in",
+              "title": "Backlinks for MAIN"
+            }
+          },
+          {
+            "id": "ae5182b005bf53e0",
+            "type": "leaf",
+            "state": {
+              "type": "outgoing-link",
+              "state": {
+                "file": "MAIN.canvas",
+                "linksCollapsed": false,
+                "unlinkedCollapsed": true
+              },
+              "icon": "links-going-out",
+              "title": "Outgoing links from MAIN"
+            }
+          },
+          {
+            "id": "f2445bbbdd3fe067",
+            "type": "leaf",
+            "state": {
+              "type": "tag",
+              "state": {
+                "sortOrder": "frequency",
+                "useHierarchy": true,
+                "showSearch": false,
+                "searchQuery": ""
+              },
+              "icon": "lucide-tags",
+              "title": "Tags"
+            }
+          },
+          {
+            "id": "439e3003c6ea5076",
+            "type": "leaf",
+            "state": {
+              "type": "all-properties",
+              "state": {
+                "sortOrder": "frequency",
+                "showSearch": false,
+                "searchQuery": ""
+              },
+              "icon": "lucide-archive",
+              "title": "All properties"
+            }
+          },
+          {
+            "id": "38496b6b98aa75c2",
+            "type": "leaf",
+            "state": {
+              "type": "outline",
+              "state": {
+                "file": "MAIN.canvas",
+                "followCursor": false,
+                "showSearch": false,
+                "searchQuery": ""
+              },
+              "icon": "lucide-list",
+              "title": "Outline of MAIN"
+            }
+          }
+        ]
+      }
+    ],
+    "direction": "horizontal",
+    "width": 300,
+    "collapsed": true
+  },
+  "left-ribbon": {
+    "hiddenItems": {
+      "switcher:Open quick switcher": false,
+      "graph:Open graph view": false,
+      "canvas:Create new canvas": false,
+      "daily-notes:Open today's daily note": false,
+      "templates:Insert template": false,
+      "command-palette:Open command palette": false,
+      "bases:Create new base": false,
+      "document-exporter:Export documents": false
+    }
+  },
+  "active": "c23e491f7b0e257a",
+  "lastOpenFiles": [
+    "Documentation/Delivery Orchestration Architecture.md",
+    "Documentation/MQTT Broker and Service.md",
+    "exports/Documentation/Database structure.pdf",
+    "exports/Documentation/Classes/Racks.pdf",
+    "exports/Documentation/Classes/Envelope T.pdf",
+    "exports/Documentation/assets/KODA SMART WAREHOUSE.png",
+    "exports/Documentation/assets/Heartbeat example.png",
+    "exports/Documentation/assets/Delivery Service Functioning Diagram.png",
+    "Documentation/Classes/Robots.md",
+    "exports/Documentation/MQTT Broker and Service.pdf",
+    "exports/Documentation/assets/UseCase of delivery task creating.png",
+    "exports/Documentation/assets/Relations of Delivery and Task services according to parts.png",
+    "exports/Documentation/Warehouse Robotics Backend Architecture.pdf",
+    "exports/Documentation/Robot State Management.pdf",
+    "exports/Documentation/Delivery Orchestration Architecture.pdf",
+    "exports/Documentation/assets/Relations of system.png",
+    "exports/Documentation/assets",
+    "exports/Documentation/Contents.pdf",
+    "exports/Documentation/Classes/Robots.pdf",
+    "Documentation/Robot State Management.md",
+    "Documentation/Warehouse Robotics Backend Architecture.md",
+    "Documentation/Database structure.md",
+    "Documentation/Contents.md",
+    "Documentation/Classes/Envelope T.md",
+    "Documentation/Classes/Racks.md",
+    "Documentation/Images/UseCase of delivery task creating.png",
+    "Documentation/Images/Relations of Delivery and Task services according to parts.png",
+    "Documentation/Images/Heartbeat example.png",
+    "IDEAS/MAIN.canvas",
+    "Documentation/Images/Delivery Service Functioning Diagram.png",
+    "Documentation/Visual Part.canvas",
+    "IDEAS/INNER/Init tables for Database.md",
+    "IDEAS/OUTER/OUTER Main.md",
+    "IDEAS/ROBOT/ROBOT Main.md",
+    "IDEAS/INNER/INNER Main.md",
+    "Welcome.md"
+  ]
+}
