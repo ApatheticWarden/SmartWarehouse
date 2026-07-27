@@ -1,3 +1,12 @@
+## 🚀 A Personal Note from the Founder
+Hey there! I’m one of the original co-founders of this project (and yes, also a student :P).
+
+This initiative was initially designed for a cross-disciplinary team of 4-6 people. However, due to various scheduling uncertainties and life getting in the way, the project has been somewhat on hold recently. Despite the setbacks, I refuse to let this idea gather dust.
+
+For the time being, I am stepping up to push the development forward on my own. My ultimate goal is to keep the momentum going, build out a solid foundation, and eventually merge this work back into the main repository. I want to see this through and make KODA proud of what we can achieve!
+
+We might be flying solo for now, but the mission remains the exact same :D
+
 ## Overview
 This repository contains the source code and documentation for our university science club (Koło Naukowe) project. 
 We are building a budget-friendly, decentralized "goods-to-person" logistics ecosystem tailored for Small and Medium Enterprises (SMEs). 

@@ -25,14 +25,14 @@ namespace SmartWarehouse.Services {
                 await _context.AddAsync(task);
                 await _context.SaveChangesAsync();
 
-                return Envelope<WarehouseTask>.Ok(task);
+                return task;
             } catch (Exception ex) {
                 return Envelope<WarehouseTask>.Error($"Failed to create task: {ex.Message}");
             }
         }
 
-        public async Task<Envelope<WarehouseTask>> AssignRobotAsync(int taskId, int robotId) {
+        //public async Task<Envelope<WarehouseTask>> AssignRobotAsync(int taskId, int robotId) {
         
-        }
+        //}
     }
 }

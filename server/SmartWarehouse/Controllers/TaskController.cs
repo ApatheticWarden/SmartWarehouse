@@ -13,9 +13,9 @@ namespace SmartWarehouse.Controllers {
             _taskService = taskService;
         }
 
-        [HttpPost("create-task")]
-        public async Task<IActionResult> CreateTask(NewTaskDTO newTask) {
-            var res = await _taskService.CreateTaskAsync(newTask);
-        }
+        //[HttpPost("create-task")]
+        //public async Task<IActionResult> CreateTask(NewTaskDTO newTask) {
+        //    var res = await _taskService.CreateTaskAsync(newTask);
+        //}
     }
 }

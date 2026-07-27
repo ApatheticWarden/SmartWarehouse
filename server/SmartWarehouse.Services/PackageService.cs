@@ -17,7 +17,7 @@ namespace SmartWarehouse.Services {
         public async Task<Envelope<Package>> GetPackageByIdAsync(int id) {
             var package = await _context.Packages.FindAsync(id);
             if (package == null) return Envelope<Package>.Error("No such item");
-            return Envelope<Package>.Ok(package);
+            return package;
         }
 
         public async Task<Envelope<Package>> CreatePackageAsync(PackageCreationDTO creationDTO) {
@@ -31,7 +31,7 @@ namespace SmartWarehouse.Services {
                 await _context.AddAsync(package);
                 await _context.SaveChangesAsync();
 
-                return Envelope<Package>.Ok(package);
+                return package;
             } catch (Exception ex) {
                 return Envelope<Package>.Error($"Unable to create a package. Details: {ex}");
             }
