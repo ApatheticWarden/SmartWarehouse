@@ -1,99 +1,119 @@
-# 🧠 The Brain of the Warehouse: MQTT Background Service
+> [!abstract]  
+> The MQTT background service is responsible for maintaining the broker connection, receiving robot messages, and dispatching them for asynchronous processing.  
+> It exists to support continuous robot communication without coupling MQTT traffic to HTTP request handling.  
+  
+![[MQTT Background Service Architecture.png]]  
+  
+## Purpose  
+This service handles the runtime side of robot communication.  
+  
+Its responsibilities are:  
+- maintain a persistent MQTT connection  
+- subscribe to robot-related topics  
+- receive incoming messages  
+- route messages by topic  
+- process messages asynchronously  
+- isolate high-frequency traffic from the rest of the application    
+## Runtime role  
+The service runs as a long-lived background process.  
 
-> [!info] 🎯 Executive Summary
-> Think of the `MqttBackgroundService` as the **Air Traffic Controller** for our warehouse robots. It’s a long-running, indestructible background process (`Singleton`) that keeps a persistent ear open to the MQTT broker, catches hundreds of messages per second, and routes them safely without blocking the main application.
+This is necessary because:  
+- robot communication must continue independently of HTTP requests  
+- broker connection state must survive across the application lifetime  
+- telemetry and task updates may arrive continuously    
+## Processing model  
+The service uses a producer-consumer approach.  
+### Ingestion stage  
+Incoming MQTT messages are received by the MQTT client event handler.  
+  
+The handler should stay lightweight:  
+- identify the topic  
+- choose the correct processing path  
+- enqueue the message  
+- return immediately    
+The handler should not perform heavy parsing, database work, or long-running business logic.  
+### Processing stage  
+Separate worker loops consume queued messages and execute the actual processing logic.  
+  
+This separation prevents:  
+- blocking the MQTT client  
+- delayed message reception  
+- increased risk of disconnects under load  
+  
+## Topic handling  
 
----
+| Topic category       | Example purpose                                          | Processing priority | Notes                         |
+| :------------------- | :------------------------------------------------------- | :------------------ | :---------------------------- |
+| Task updates         | robot task progress, task completion, task state changes | High                | Must be handled reliably      |
+| Telemetry            | battery, position, live robot data                       | Medium              | High volume, time-sensitive   |
+| Presence / heartbeat | online-offline visibility                                | High                | Used for runtime availability |
 
-## 🗺️ High-Level Architecture Flow
+## Channel strategy  
+The service uses separate channels for different message types.  
 
-> [!abstract]- 📐 View PlantUML Architecture Diagram (PlantText)
-> ![[MQTT Background Service Architecture.png]]
+| Channel           | Typical payload              | Buffer strategy | Overflow behavior | Reason                                              |
+| :---------------- | :--------------------------- | :-------------- | :---------------- | :-------------------------------------------------- |
+| Task channel      | task state updates           | bounded         | wait for space    | task updates should not be lost                     |
+| Telemetry channel | live status and measurements | bounded         | drop oldest       | fresh telemetry is more useful than stale telemetry |
+  
+This separation reflects different operational priorities.  
 
----
-
-## 🧩 The Cast of Characters
-
-| Component | Lifespan | What it actually does |
-| :--- | :--- | :--- |
-| 👑 **MqttBackgroundService** | `Singleton` | The immortal boss. Holds everything together and outlives HTTP requests. |
-| 🔌 **Manage Connection** | `Infinite Loop` | The mechanic. Constantly checks if the broker is alive and reconnects if a cable drops. |
-| ⚡ **The Router** | `Event Trigger` | The sorter. Looks at incoming topics and instantly throws payloads into the right buckets. |
-| 🏋️ **The Workers** | `Infinite Loop` | The heavy lifters. They pull tasks out of the buckets, parse JSON, and run business logic. |
-| 🛡️ **Scope Factory** | `Transient` | The memory-leak defuser. Spawns short-lived DI containers for database operations. |
-
----
-
-## 🏎️ The Engine: `MQTTnet` Toolbox
-
-We use **MQTTnet** because it's insanely fast and built for .NET. Here's our setup in the constructor:
-
-* `MqttClientFactory`: The forge where we build our client.
-* `MqttClientOptions`: Our ID card (`IP`, `Port`, `ClientId`). We use `.WithCleanSession()` so we never inherit ghost messages from past sessions after a reboot.
-* `IMqttClient`: The actual pipeline. We hook into `DisconnectedAsync` for logging and `ApplicationMessageReceivedAsync` as our incoming message gate.
-
----
-
-## 🤹‍♂️ 1. The "No-Blocking" Rule (`Task.WhenAll`)
-
-> [!success] 🚀 Concurrent Orchestration
-> A standard `while(true)` loop would freeze the whole service. Instead, our `ExecuteAsync` is an **orchestrator** that launches three independent parallel flows simultaneously:
-> 
-> 1. 🔌 **`ManageMqttConnectionAsync`** — Keeps the connection alive & stable.
-> 2. 📦 **`ProcessTasksAsync`** — Consumes critical task queues.
-> 3. 🛸 **`ProcessTelemetryAsync`** — Consumes real-time telemetry spam.
-
-*If saving a task to the database takes a whole second, the MQTT client doesn't care — it keeps receiving telemetry in the background.*
-
----
-
-## 🚦 2. The Conveyor Belts (`System.Threading.Channels`)
-
-If you try to parse JSON and save to a database right when a message arrives in the event handler, the MQTT client will choke and drop connections. 
-
-We solved this using the **Producer-Consumer pattern**. The Router just grabs messages and drops them onto fast in-memory conveyor belts (Channels).
-
-### ⚖️ Backpressure Strategy Matrix
-
-| Feature | 📥 The Task Channel | 🛸 The Telemetry Channel |
-| :--- | :--- | :--- |
-| **Topic Route** | `smartwh/robots/+/task/update` | `smartwh/robots/+/telemetry` |
-| **Data Payload** | "Robot picked up item #45" | "Robot coordinates: X, Y & Battery" |
-| **Buffer Limit** | 1,000 messages | 5,000 messages |
-| **Overflow Mode** | `BoundedChannelFullMode.Wait` | `BoundedChannelFullMode.DropOldest` |
-| **Push Method** | `await WriteAsync(...)` | `TryWrite(...)` |
-| **Why this rule?** | Missing a task breaks the warehouse state. **We must wait for space.** | Nobody cares where the robot *was* 5 seconds ago. **Drop old spam, keep fresh coordinates.** |
-
----
-
-## 💣 3. Defusing Memory Leaks (`IServiceScopeFactory`)
-
-> [!warning] ⚠️ The Singleton Trap
-> Background services live forever (`Singleton`). If you inject a Scoped service like Entity Framework's `DbContext` directly into its constructor, it stays alive forever. The tracking state bloats, RAM explodes, and the server crashes.
-
-> [!tip] 💡 The Solution
-> We inject `IServiceScopeFactory`. For every single message pulled from the channel, we build a tiny, temporary universe:
-
-```text
-📥 Pull Message  ──>  🧪 Create Scope  ──>  ⚙️ Resolve Service  ──>  💾 Execute DB/Cache  ──>  🗑️ Dispose Scope
-```
-
-1. **Pull:** Worker wakes up as a message hits the channel.
-2. **Spawn:** `using var scope = _scopeFactory.CreateScope();`
-3. **Resolve:** We get a fresh, isolated `DbContext` or Business Service.
-4. **Execute:** Data is safely processed and saved.
-5. **Destroy:** The `using` block ends. The scope dies, connection returns to the pool, RAM stays pristine.
-
----
-
-## 🧟 4. The Self-Healing Connection
-
-Networks are fragile. Cables get kicked, WiFi drops. The `ManageMqttConnectionAsync` loop acts as our survival mechanic. 
-
-If the broker goes offline, this background loop automatically:
-1. Catches the exception safely (no app crashes).
-2. Sleeps for 1 second (`Task.Delay`).
-3. Tries to `ConnectAsync` again.
-4. Re-subscribes (`SubscribeAsync`) to all topics once the pipe is back up.
-
-*Zero manual server restarts required*
+Task updates affect workflow correctness.  
+Telemetry mainly reflects current state and loses value quickly when outdated.  
+  
+## Connection management  
+Connection lifecycle should be managed in its own loop.  
+Main responsibilities:  
+- connect to the broker  
+- detect disconnects  
+- retry after failure  
+- restore subscriptions after reconnect  
+  
+A reconnect loop should assume that broker availability is not guaranteed.  
+  
+Typical behavior:  
+1. detect lost connection  
+2. log the failure  
+3. wait briefly  
+4. retry connection  
+5. resubscribe to required topics  
+## Scoped dependency handling  
+The background service itself is long-lived, but many application dependencies should remain short-lived.  
+  
+| Component type | Lifetime | Usage rule |  
+| :--- | :--- | :--- |  
+| MQTT background service | Singleton | owns connection and worker loops |  
+| database context | Scoped | created only when processing a message |  
+| business services | Scoped / transient | resolved inside a processing scope |  
+  
+This matters because scoped dependencies should not be held directly by a singleton for the full application lifetime.  
+  
+For message processing, the safe pattern is:  
+1. dequeue message  
+2. create scope  
+3. resolve required services  
+4. process message  
+5. dispose scope  
+## Failure considerations  
+The service should tolerate:  
+- broker disconnects  
+- malformed payloads  
+- temporary database errors  
+- transient processing failures  
+  
+Failures should be isolated so that:  
+- one bad message does not stop the whole service  
+- connection handling continues  
+- other queued messages can still be processed  
+## Constraints  
+- MQTT receive handlers must stay lightweight  
+- database work should happen outside the receive callback  
+- long-lived singleton state must not directly hold scoped services  
+- task updates should be handled more conservatively than telemetry  
+- reconnection must restore subscriptions automatically  
+  
+## Related notes  
+  
+- [[Warehouse Robotics Backend Architecture]]  
+- [[Delivery Orchestration Architecture]]  
+- [[Robot State Management]]
