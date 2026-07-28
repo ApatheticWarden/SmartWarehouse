@@ -1,8 +1,11 @@
 ﻿using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
+using Microsoft.IdentityModel.Tokens;
 using MQTTnet;
 using System.Text;
+using System.Threading.Channels;
 
 namespace SmartWarehouse.Services.Mqtt {
     public class MqttBackgroundService : BackgroundService {
@@ -11,12 +14,30 @@ namespace SmartWarehouse.Services.Mqtt {
         private readonly MqttClientOptions _mqttClientOptions;
         private readonly MqttClientFactory _mqttFactory;
 
+        // For scoped ones
+        private readonly IServiceScopeFactory _scopeFactory;
+
         // No hardcode, just chill
         private readonly IConfiguration _config;
 
-        public MqttBackgroundService(ILogger<MqttBackgroundService> logger, IConfiguration config) {
+        // Channels
+        // 1000 | 5000 - param which defines how many messages would be there
+        private readonly Channel<MqttApplicationMessage> _taskChannel =
+            Channel.CreateBounded<MqttApplicationMessage>(new BoundedChannelOptions(1000) {
+                FullMode = BoundedChannelFullMode.Wait
+            });
+
+        private readonly Channel<MqttApplicationMessage> _telemetryChannel =
+            Channel.CreateBounded<MqttApplicationMessage>(new BoundedChannelOptions(5000) {
+                FullMode = BoundedChannelFullMode.DropOldest
+            });
+
+        public MqttBackgroundService(ILogger<MqttBackgroundService> logger, 
+            IConfiguration config,
+            IServiceScopeFactory scopeFactory) {
             _logger = logger;
             _config = config;
+            _scopeFactory = scopeFactory;
 
             // get conf
             string brokerIp = _config["MqttSettings:BrokerIp"] ?? throw new InvalidOperationException("BrokerIp absent in appsettings");
@@ -43,23 +64,27 @@ namespace SmartWarehouse.Services.Mqtt {
             };
         }
 
-        private Task HandleIncomingMessage(MqttApplicationMessageReceivedEventArgs e) {
+        // This func must be "dumb", no hard calcs here
+        private async Task HandleIncomingMessage(MqttApplicationMessageReceivedEventArgs e) {
             string topic = e.ApplicationMessage.Topic;
-            string payload = e.ApplicationMessage.ConvertPayloadToString();
-
-            _logger.LogInformation($"[MQTT RAW] Got from topic {topic}: {payload}");
-
-            // Some actions here
-
-            return Task.CompletedTask;
+            try {
+                if (topic.EndsWith("task/update", StringComparison.Ordinal)) {
+                    await _taskChannel.Writer.WriteAsync(e.ApplicationMessage);
+                } else if (topic.EndsWith("telemetry", StringComparison.Ordinal)) {
+                    _telemetryChannel.Writer.TryWrite(e.ApplicationMessage);
+                } else {
+                    _logger.LogWarning($"[MQTT RAW] Unhandled topic routed: {e.ApplicationMessage.Topic}");
+                }
+            } catch (Exception ex) {
+                _logger.LogError(ex, $"[MQTT ERROR] Failed to process message from topic {e.ApplicationMessage.Topic}");
+            }
         }
 
-        // Executed on start 
-        protected override async Task ExecuteAsync(CancellationToken stoppingToken) {
+        private async Task ManageMqttConnectionAsync(CancellationToken stoppingToken) {
             var subscribeOptions = _mqttFactory.CreateSubscribeOptionsBuilder()
-            .WithTopicFilter(f => f.WithTopic("smartwh/robots/+/telemetry"))
-            .WithTopicFilter(f => f.WithTopic("smartwh/robots/+/task/update"))
-            .Build();
+                .WithTopicFilter(f => f.WithTopic("smartwh/robots/+/telemetry"))
+                .WithTopicFilter(f => f.WithTopic("smartwh/robots/+/task/update"))
+                .Build();
 
             while (!stoppingToken.IsCancellationRequested) {
                 if (!_mqttClient.IsConnected) {
@@ -88,6 +113,50 @@ namespace SmartWarehouse.Services.Mqtt {
                 await _mqttClient.DisconnectAsync(disconnectOptions, CancellationToken.None);
                 _logger.LogInformation("[MQTT] Client stopped normally");
             }
+        }
+
+        private async Task ProcessTasksAsync(CancellationToken stoppingToken) {
+            try {
+                await foreach (var message in _taskChannel.Reader.ReadAllAsync(stoppingToken)) {
+                    try {
+                        string payload = message.ConvertPayloadToString();
+                        _logger.LogInformation($"[TASK WORKER] Processing: {payload}");
+
+                        // Here do serialization
+                        // var taskDto = JsonSerializer.Deserialize<TaskUpdateDto>(payload);
+
+                        // Get needy service 
+                        // using var scope = _scopeFactory.CreateScope();
+                        // e.x. var dbContext = scope.ServiceProvider.GetRequiredService<MyDbContext>();
+
+                        // Some actions here
+                        // e.x. await dbContext.SaveChangesAsync(stoppingToken);
+
+                    } catch (Exception ex) {
+                        _logger.LogError(ex, "[TASK WORKER] Failed to process message");
+                    }
+                }
+            } catch (OperationCanceledException) {
+                _logger.LogInformation("[TASK WORKER] Stopped gracefully");
+            } catch (Exception ex) {
+                _logger.LogCritical(ex, "[TASK WORKER] Fatal error, channel reading stopped!");
+            }
+        }
+
+        private async Task ProcessTelemetryAsync(CancellationToken stoppingToken) {
+            // do something here
+        }
+
+        // Executed on start 
+        protected override async Task ExecuteAsync(CancellationToken stoppingToken) {
+            // Our tasks
+            var taskProcessingTask = ProcessTasksAsync(stoppingToken);
+            var telemetryProcessingTask = ProcessTelemetryAsync(stoppingToken);
+            // Main task
+            var mqttConnectionTask = ManageMqttConnectionAsync(stoppingToken);
+
+            // Wait its simultaneously work
+            await Task.WhenAll(mqttConnectionTask, telemetryProcessingTask, taskProcessingTask);
         }
     }
 }

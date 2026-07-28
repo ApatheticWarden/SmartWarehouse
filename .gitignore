@@ -11,6 +11,10 @@ out/
 packages/
 *.nupkg
 
+# Server side
+server/SmartWarehouse/appsettings.json
+server/SmartWarehouse.Database/Migrations/
+
 # C++ / Visual Studio
 ipch/
 *.aps
