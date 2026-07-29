@@ -24,13 +24,13 @@ The current model treats a task as a single execution unit.
   
 ### Main assumptions  
 
-| Question | Current assumption |  
-| :--- | :--- |  
-| How many robots can execute one task? | one task is assigned to at most one robot |  
-| Can a task exist before assignment? | yes |  
-| Is a task the same as a delivery? | no, a delivery may be a larger workflow |  
-| Does a task contain route-relevant data? | yes, through start and end nodes |  
-| Should tasks stay generic? | yes |  
+| Question                                 | Current assumption                        |
+| :--------------------------------------- | :---------------------------------------- |
+| How many robots can execute one task?    | one task is assigned to at most one robot |
+| Can a task exist before assignment?      | yes                                       |
+| Is a task the same as a delivery?        | no, a delivery may be a larger workflow   |
+| Does a task contain route-relevant data? | yes, through start and end nodes          |
+| Should tasks stay generic?               | yes                                       |
   
 This keeps the MVP simple while leaving room for more complex workflows later.  
 ## Task lifecycle meaning  
@@ -47,10 +47,10 @@ Typical flow:
 A delivery should not be treated as identical to a task.  
 A better distinction is:  
 
-| Concept | Meaning |  
-| :--- | :--- |  
-| Task | a concrete executable unit of work |  
-| Delivery | a higher-level warehouse operation that may involve one or more tasks |  
+| Concept  | Meaning                                                               |
+| :------- | :-------------------------------------------------------------------- |
+| Task     | a concrete executable unit of work                                    |
+| Delivery | a higher-level warehouse operation that may involve one or more tasks |
   
 This distinction is useful because it keeps execution logic smaller and more reusable.  
 ## Relation to worker actions  
@@ -66,17 +66,17 @@ That means a task is best understood as the server-side operational form of a wa
 The current `WarehouseTask` model contains both assignment and route-relevant data.  
 ### Core fields  
   
-| Field | Meaning |  
-| :--- | :--- |  
-| `Id` | unique task identifier |  
-| `RackId` | related rack |  
-| `AssignedRobotId` | robot assigned to execute the task |  
-| `Command` | type of warehouse action |  
-| `StartNodeId` | route start point |  
-| `EndNodeId` | route destination |  
-| `Status` | current execution state |  
-| `CreatedAt` | creation time |  
-| `CompletedAt` | completion time |  
+| Field             | Meaning                            |
+| :---------------- | :--------------------------------- |
+| `Id`              | unique task identifier             |
+| `RackId`          | related rack                       |
+| `AssignedRobotId` | robot assigned to execute the task |
+| `Command`         | type of warehouse action           |
+| `StartNodeId`     | route start point                  |
+| `EndNodeId`       | route destination                  |
+| `Status`          | current execution state            |
+| `CreatedAt`       | creation time                      |
+| `CompletedAt`     | completion time                    |
   
 This suggests that a task already acts as both:  
 - an execution record  
@@ -117,4 +117,4 @@ These do not block the current model, but may evolve later:
 - [[Delivery Orchestration Architecture]]  
 - [[Robot State Management]]  
 - [[Database structure]]  
-- [[Robots]]
+- [[Robot]]

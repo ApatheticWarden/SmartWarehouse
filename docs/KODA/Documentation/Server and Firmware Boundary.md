@@ -123,4 +123,4 @@ This makes the overall system easier to extend and safer to maintain.
 - [[Warehouse Tasks]]  
 - [[MQTT Background Service Architecture]]  
 - [[Robot State Management]]  
-- [[Robots]]
+- [[Robot]]

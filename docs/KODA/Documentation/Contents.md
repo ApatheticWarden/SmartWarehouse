@@ -34,10 +34,10 @@
 - [[Database structure]]  
 - Overview of persistent entities and their relations.  
   
-- [[Racks]]  
+- [[Rack]]  
 - Domain note for rack entities and their role in the system.  
   
-- [[Robots]]  
+- [[Robot]]  
 - Domain note for robot entities and their role in execution flow.  
   
 ## Conventions and patterns  

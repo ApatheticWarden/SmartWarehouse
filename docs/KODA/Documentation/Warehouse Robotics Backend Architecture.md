@@ -15,7 +15,7 @@ tags:
 > The backend is a single ASP.NET Core application that serves two roles:  
 > - a REST API for user-driven operations  
 > - an MQTT client for real-time communication with warehouse robots  
->  
+> 
 > This design keeps business logic, orchestration, and robot communication inside one runtime while separating persistent data from live operational state.  
   
 ![[Relations of Delivery and Task services according to parts.png]]  

@@ -1,5 +1,0 @@
-﻿{
-  "message_format": "JSON",
-  "version": "1.0",
-  "commands": ["move", "stop", "pickup", "dropoff"]
-}

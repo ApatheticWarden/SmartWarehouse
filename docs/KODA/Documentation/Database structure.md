@@ -173,5 +173,5 @@ These should be added only when the workflow requires them, not preemptively.
 - [[Warehouse Robotics Backend Architecture]]
 - [[Delivery Orchestration Architecture]]
 - [[Robot State Management]]
-- [[Racks]]
-- [[Robots]]
+- [[Rack]]
+- [[Robot]]

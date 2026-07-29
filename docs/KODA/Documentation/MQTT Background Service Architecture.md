@@ -1,3 +1,4 @@
+
 > [!abstract]  
 > The MQTT background service is responsible for maintaining the broker connection, receiving robot messages, and dispatching them for asynchronous processing.  
 > It exists to support continuous robot communication without coupling MQTT traffic to HTTP request handling.  

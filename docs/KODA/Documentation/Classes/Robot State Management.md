@@ -136,4 +136,4 @@ If persistent and live state are mixed together:
 - [[Warehouse Robotics Backend Architecture]]
 - [[MQTT Background Service Architecture]]
 - [[Delivery Orchestration Architecture]]
-- [[Robots]]
+- [[Robot]]
