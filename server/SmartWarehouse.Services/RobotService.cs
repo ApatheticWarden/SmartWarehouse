@@ -20,8 +20,14 @@ namespace SmartWarehouse.Services {
                 query = query.Where(r => r.Stance == RobotStance.Idle);
             }
             var robots = query.ToList();
-            if (robots.IsNullOrEmpty()) return Envelope<List<RobotServerState>>.Error("There are no robots (Or no active)");
+            if (robots.IsNullOrEmpty()) return Envelope<List<RobotServerState>>.Error("[ROBOT SERVICE] There are no robots (Or no active)");
             return robots;
+        }
+
+        public async Task<Envelope<Robot>> GetRobotById(int robotId) {
+            var robot = await _context.Robots.FindAsync(robotId);
+            if (robot == null) return Envelope<Robot>.Error($"[ROBOT SERVICE] Robot with id {robotId} was not found");
+            return robot;
         }
     }
 }

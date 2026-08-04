@@ -4,7 +4,9 @@ using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using Microsoft.IdentityModel.Tokens;
 using MQTTnet;
+using SmartWarehouse.Models.DTOs;
 using System.Text;
+using System.Text.Json;
 using System.Threading.Channels;
 
 namespace SmartWarehouse.Services.Mqtt {
@@ -123,14 +125,34 @@ namespace SmartWarehouse.Services.Mqtt {
                         _logger.LogInformation($"[TASK WORKER] Processing: {payload}");
 
                         // Here do serialization
-                        // var taskDto = JsonSerializer.Deserialize<TaskUpdateDto>(payload);
+                        var taskDto = JsonSerializer.Deserialize<TaskAnswerDTO>(payload);
 
                         // Get needy service 
-                        // using var scope = _scopeFactory.CreateScope();
+                        using var scope = _scopeFactory.CreateScope();
+
                         // e.x. var dbContext = scope.ServiceProvider.GetRequiredService<MyDbContext>();
 
                         // Some actions here
                         // e.x. await dbContext.SaveChangesAsync(stoppingToken);
+
+                        // What it must do?
+                        // - Update its status on db and server buffers (if present)
+
+                        // - if completed - unssign robot from this task ("DRY" Assign(null, task) )
+                        if (taskDto!.Status.Equals(Models.Enums.TaskStatus.Completed)) {
+                            // fetch service here
+                            // CompleteTaskAsync
+                        }
+                        // - if pending - process the route and start
+                        else if (taskDto!.Status.Equals(Models.Enums.TaskStatus.Pending)) {
+                            // fetch here
+                        }
+                        // - if failed - check and repeat (reroute and start)
+                        else if (taskDto!.Status.Equals(Models.Enums.TaskStatus.Failed)) {
+                            // fetch here
+                        } else {
+                            _logger.LogError("[TASK WORKER] Unsupported status passed");
+                        }
 
                     } catch (Exception ex) {
                         _logger.LogError(ex, "[TASK WORKER] Failed to process message");
@@ -144,7 +166,10 @@ namespace SmartWarehouse.Services.Mqtt {
         }
 
         private async Task ProcessTelemetryAsync(CancellationToken stoppingToken) {
-            // do something here
+            // What does?
+            // cache in memory pos of this robot
+            // check route
+            // .
         }
 
         // Executed on start 

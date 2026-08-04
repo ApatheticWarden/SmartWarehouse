@@ -10,6 +10,8 @@ using System.Threading.Tasks;
 namespace SmartWarehouse.Services.Interfaces {
     public interface ITaskService {
         Task<Envelope<WarehouseTask>> CreateTaskAsync(NewTaskDTO newTask);
-        //Task<Envelope<WarehouseTask>> AssignRobotAsync(int robotId);
+        Task<Envelope<WarehouseTask>> GetTaskByIdAsync(int taskId);
+        Task<Envelope<WarehouseTask>> AssignRobotAsync(int taskId, int? robotId);
+        
     }
 }

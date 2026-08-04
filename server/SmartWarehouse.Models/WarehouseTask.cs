@@ -1,4 +1,6 @@
 ﻿using SmartWarehouse.Models.Enums;
+using SmartWarehouse.Models.Wrappers;
+using System.ComponentModel.Design;
 
 namespace SmartWarehouse.Models {
     public class WarehouseTask {
@@ -16,5 +18,44 @@ namespace SmartWarehouse.Models {
         public Enums.TaskStatus Status { get; set; } = Enums.TaskStatus.Pending;
         public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
         public DateTime? CompletedAt { get; set; }
+
+        public WarehouseTask Assign(int robotId) {
+            if (Status.Equals(Enums.TaskStatus.Completed)) throw new InvalidOperationException("Cannot assign robot to already completed task");
+            AssignedRobotId = robotId;
+            return this;
+        }
+
+        // UnAssign Here
+        public WarehouseTask UnAssign() {
+            if (AssignedRobotId == null) throw new InvalidOperationException("Task has no robot attached to it");
+            AssignedRobotId = null;
+            return this;
+        }
+
+        // MarkAsComplete
+        public WarehouseTask MarkAsComplete() {
+            if (Status.Equals(Enums.TaskStatus.Completed)) throw new InvalidOperationException("Task is already completed");
+            else if (Status.Equals(Enums.TaskStatus.Failed)) throw new InvalidOperationException("Task is failed");
+
+            Status = Enums.TaskStatus.Completed;
+            CompletedAt = DateTime.UtcNow;  
+            return this;
+        }
+
+        // MarkAsInProgress
+        public WarehouseTask MarkAsInProgress() {
+            if (Status.Equals(Enums.TaskStatus.Completed)) throw new InvalidOperationException("Task is already completed");
+            Status = Enums.TaskStatus.InProgress;
+            return this;
+        }
+
+        // MarkAsFailed
+        public WarehouseTask MarkAsFailed() {
+            if (Status.Equals(Enums.TaskStatus.Failed)) throw new InvalidOperationException("Task is already 'Failed'");
+            else if (Status.Equals(Enums.TaskStatus.Completed)) throw new InvalidOperationException("Task is 'Completed'");
+
+            Status = Enums.TaskStatus.Failed;
+            return this;
+        }
     }
 }

@@ -6,8 +6,9 @@ using System.Threading.Tasks;
 
 namespace SmartWarehouse.Models.Enums {
     public enum TaskStatus {
-        Pending, 
-        InProgress, 
+        Pending,
+        Assigned,
+        InProgress,
         Completed, 
         Failed
     }
