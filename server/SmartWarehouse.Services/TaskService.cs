@@ -1,18 +1,15 @@
-﻿using Microsoft.EntityFrameworkCore.Infrastructure.Internal;
-using Microsoft.Extensions.Logging;
+﻿using Microsoft.Extensions.Logging;
 using SmartWarehouse.Database;
 using SmartWarehouse.Models;
 using SmartWarehouse.Models.DTOs;
 using SmartWarehouse.Models.Wrappers;
 using SmartWarehouse.Services.Interfaces;
-using System.Runtime.InteropServices.ComTypes;
-using System.Text.Json.Serialization.Metadata;
 
 namespace SmartWarehouse.Services {
     public class TaskService: ITaskService {
         private readonly SmartWarehouseContext _context;
-        private readonly ILogger _logger;
-        public TaskService(SmartWarehouseContext context, ILogger logger) {
+        private readonly ILogger<TaskService> _logger;
+        public TaskService(SmartWarehouseContext context, ILogger<TaskService> logger) {
             _context = context;
             _logger = logger;
         }
@@ -67,13 +64,15 @@ namespace SmartWarehouse.Services {
             return task;
         }
 
+        
+
         // HandleTaskCompletedAsync
         public async Task<Envelope<WarehouseTask>> HandleTaskCompletedAsync(int taskId) {
             // verify task
             var res = await GetTaskByIdAsync(taskId);
             if (!res.IsSuccess) return Envelope<WarehouseTask>.Error(res.Message!);
 
-            var task = res.Payload!;
+            var task = res.Payload;
             try {
                 // mark completed
                 task.MarkAsComplete();
@@ -81,6 +80,7 @@ namespace SmartWarehouse.Services {
                 task.UnAssign();
                 // save
                 await _context.SaveChangesAsync();
+                _logger.LogInformation($"[TASK SERVICE] Task [{taskId}] was completed!");
             } catch (InvalidOperationException ex) {
                 return Envelope<WarehouseTask>.Error(ex.Message);
             }
@@ -88,18 +88,38 @@ namespace SmartWarehouse.Services {
             return task;
         }
 
+        // HandleTaskAcceptedAsync
+        public async Task<Envelope<WarehouseTask>> HandleTaskAcceptedAsync(int taskId) {
+            // cmnded rb to take task -> rb accepted (we are here) -> (do) w in in-memdb
+            // UPD: Dont do this rn. May it be in future
+            var res = await GetTaskByIdAsync(taskId);
+            if (!res.IsSuccess) return Envelope<WarehouseTask>.Error(res.Message!);
+            var task = res.Payload;
+
+            _logger.LogInformation(
+                 "[TASK SERVICE] Task [{TaskId}] was accepted by robot [{RobotId}]",
+                 taskId,
+                 task.AssignedRobotId
+             );
+            return task;
+        }
+
         // HandleTaskFailedAsync
-        public async Task<Envelope<WarehouseTask>> HandleTaskFailedAsync(int taskid, string message) {
+        public async Task<Envelope<WarehouseTask>> HandleTaskFailedAsync(int taskId, string message) {
             // find task
-            var res = await GetTaskByIdAsync(taskid);
+            var res = await GetTaskByIdAsync(taskId);
             if (!res.IsSuccess) return Envelope<WarehouseTask>.Error(res.Message!);
 
-            var task = res.Payload!;
+            var task = res.Payload;
 
             // mark as failed
             try {
                 task.MarkAsFailed();
-                _logger.LogWarning($"[TASK SERVICE WARNING] Task failed with robot message: {message}");
+                _logger.LogWarning(
+                    "[TASK SERVICE] Task [{taskId}] was marked as failed. Robot message: {RobotMessage}",
+                    task.Id,
+                    message
+                );
                 await _context.SaveChangesAsync();
             } catch (InvalidOperationException ex) {
                 return Envelope<WarehouseTask>.Error(ex.Message);
@@ -108,7 +128,7 @@ namespace SmartWarehouse.Services {
             return task;
         }
 
-        //
+        // Legacy (?)
         public async Task<Envelope<WarehouseTask>> AssignRobotAsync(int taskId, int? robotId) {
             var res = await GetTaskByIdAsync(taskId);
             if (!res.IsSuccess) return Envelope<WarehouseTask>.Error(res.Message!);
@@ -117,23 +137,6 @@ namespace SmartWarehouse.Services {
             task.AssignedRobotId = robotId;
 
             return Envelope<WarehouseTask>.Ok(task, robotId == null ? "Robot unassigned" : "Robot assigned");
-        }
-
-        // Do task that will be used through Task Worker:
-        public async Task<Envelope<WarehouseTask>> CompleteTaskAsync(int taskId) {
-            var res = await GetTaskByIdAsync(taskId);
-            if (!res.IsSuccess) return Envelope<WarehouseTask>.Error(res.Message!);
-            var task = res.Payload!;
-            // mark as complete at db and server
-            if (task.Status.Equals(Models.Enums.TaskStatus.Completed)) return Envelope<WarehouseTask>
-                    .Error("[TASK SERVICE] This task is already completed!");
-
-            task.Status = Models.Enums.TaskStatus.Completed;
-            // unassign robot
-            await AssignRobotAsync(task.Id, null);
-            await _context.SaveChangesAsync();
-            // return
-            return task;
         }
     }
 }

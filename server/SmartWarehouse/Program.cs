@@ -1,6 +1,4 @@
 using Microsoft.EntityFrameworkCore;
-using Microsoft.EntityFrameworkCore.Storage;
-using Microsoft.Extensions.DependencyInjection.Extensions;
 using SmartWarehouse.Services;
 using SmartWarehouse.Services.Interfaces;
 using SmartWarehouse.Database;

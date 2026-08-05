@@ -1,7 +1,4 @@
-﻿using Microsoft.AspNetCore.Http;
-using Microsoft.AspNetCore.Mvc;
-using SmartWarehouse.Models.DTOs;
-using SmartWarehouse.Models.Enums;
+﻿using Microsoft.AspNetCore.Mvc;
 using SmartWarehouse.Services.Interfaces;
 
 namespace SmartWarehouse.Controllers {

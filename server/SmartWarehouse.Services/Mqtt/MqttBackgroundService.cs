@@ -2,10 +2,9 @@
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
-using Microsoft.IdentityModel.Tokens;
 using MQTTnet;
 using SmartWarehouse.Models.DTOs;
-using System.Text;
+using SmartWarehouse.Services.Interfaces;
 using System.Text.Json;
 using System.Threading.Channels;
 
@@ -21,6 +20,11 @@ namespace SmartWarehouse.Services.Mqtt {
 
         // No hardcode, just chill
         private readonly IConfiguration _config;
+
+
+        static readonly JsonSerializerOptions _jsonOptions = new() {
+            PropertyNameCaseInsensitive = true
+        };
 
         // Channels
         // 1000 | 5000 - param which defines how many messages would be there
@@ -124,8 +128,13 @@ namespace SmartWarehouse.Services.Mqtt {
                         string payload = message.ConvertPayloadToString();
                         _logger.LogInformation($"[TASK WORKER] Processing: {payload}");
 
-                        // Here do serialization
-                        var taskDto = JsonSerializer.Deserialize<TaskAnswerDTO>(payload);
+                        // Here do deserialization
+                        var taskDto = JsonSerializer.Deserialize<TaskAnswerDTO>(payload, _jsonOptions);
+
+                        if (taskDto == null) {
+                            _logger.LogWarning("[TASK WORKER] Task answer is null");
+                            continue;
+                        }
 
                         // Get needy service 
                         using var scope = _scopeFactory.CreateScope();
@@ -135,25 +144,43 @@ namespace SmartWarehouse.Services.Mqtt {
                         // Some actions here
                         // e.x. await dbContext.SaveChangesAsync(stoppingToken);
 
-                        // What it must do?
-                        // - Update its status on db and server buffers (if present)
+                        var taskService = scope.ServiceProvider.GetRequiredService<ITaskService>();
 
-                        // - if completed - unssign robot from this task ("DRY" Assign(null, task) )
-                        if (taskDto!.Status.Equals(Models.Enums.TaskStatus.Completed)) {
-                            // fetch service here
-                            // CompleteTaskAsync
+                        // - if completed
+                        if (taskDto.Status.Equals(Models.Enums.RobotTaskStatus.Completed)) {
+                            var res = await taskService.HandleTaskCompletedAsync(taskDto.TaskId);
+                            if (!res.IsSuccess) _logger.LogError("[TASK WORKER] Failed to handle task completion for [{TaskId}]. Reason: {Reason}",
+                                taskDto.TaskId,
+                                res.Message
+                                );
                         }
-                        // - if pending - process the route and start
-                        else if (taskDto!.Status.Equals(Models.Enums.TaskStatus.Pending)) {
-                            // fetch here
+                        // - if started
+                        else if (taskDto.Status.Equals(Models.Enums.RobotTaskStatus.Started)) {
+                            var res = await taskService.HandleTaskStartedAsync(taskDto.TaskId);
+                            if (!res.IsSuccess) _logger.LogError("[TASK WORKER] Failed to handle task start for [{TaskId}]. Reason: {Reason}",
+                                taskDto.TaskId, 
+                                res.Message
+                                );
+                        } 
+                        // - if accepted
+                        else if (taskDto.Status.Equals(Models.Enums.RobotTaskStatus.Accepted)) {
+                            var res = await taskService.HandleTaskAcceptedAsync(taskDto.TaskId);
+                            if (!res.IsSuccess) _logger.LogError("[TASK WORKER] Failed to handle task acceptation for [{TaskId}]. Reason: {Reason}",
+                                taskDto.TaskId,
+                                res.Message
+                                );
                         }
-                        // - if failed - check and repeat (reroute and start)
-                        else if (taskDto!.Status.Equals(Models.Enums.TaskStatus.Failed)) {
-                            // fetch here
+                        // - if failed
+                        else if (taskDto.Status.Equals(Models.Enums.RobotTaskStatus.Failed)) {
+                            var res = await taskService.HandleTaskFailedAsync(taskDto.TaskId, taskDto.Message);
+                            if (!res.IsSuccess) _logger.LogError(
+                                "[TASK WORKER] Failed to handle task failure for task [{TaskId}]. Reason: {Reason}",
+                                taskDto.TaskId,
+                                res.Message
+                            );
                         } else {
-                            _logger.LogError("[TASK WORKER] Unsupported status passed");
+                            _logger.LogError("[TASK WORKER] Unsupported status passed {TaskStatus}", taskDto.Status);
                         }
-
                     } catch (Exception ex) {
                         _logger.LogError(ex, "[TASK WORKER] Failed to process message");
                     }

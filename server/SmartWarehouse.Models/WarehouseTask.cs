@@ -1,6 +1,4 @@
 ﻿using SmartWarehouse.Models.Enums;
-using SmartWarehouse.Models.Wrappers;
-using System.ComponentModel.Design;
 
 namespace SmartWarehouse.Models {
     public class WarehouseTask {
