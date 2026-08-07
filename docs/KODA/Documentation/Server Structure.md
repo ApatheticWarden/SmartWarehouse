@@ -1,150 +1,166 @@
-
 > [!abstract]  
-> The server is the central backend runtime of the warehouse system.  
-> It is responsible for task coordination, warehouse state management, persistent storage, and communication with robots through server-side control logic.  
+> The server is structured as a layered backend system with controllers, services, persistent storage, runtime state, and background workers.  
+> It combines request-driven logic with long-lived MQTT-driven runtime processing.  
   
 ## Purpose  
+This note describes the structural organization of the backend.  
   
-The server exists to manage warehouse operations from the backend side.  
+It exists to explain:  
+- the main backend layers  
+- where runtime communication enters the system  
+- how persistent and in-memory state are separated  
+- how controllers, services, and workers interact  
+## High-level structure  
+The backend currently consists of these main parts:  
   
-Its responsibilities are:  
-- receive and process worker or system requests  
-- create and coordinate warehouse tasks  
-- manage persistent warehouse state  
-- expose API endpoints for server-side operations  
-- communicate operational intent to robots  
-- maintain runtime state needed for decision-making  
-  
-This note describes only the server side of the system.  
-Firmware internals and hardware behavior are documented separately.  
-  
-## System role  
-  
-The server acts as the control layer for backend warehouse operations.  
-  
-It is responsible for:  
-- translating incoming requests into executable backend actions  
-- coordinating task creation and task lifecycle updates  
-- storing and querying persistent domain data  
-- maintaining live server-side runtime state  
-- supporting integration points for other internal or external systems  
-  
-The server should not be treated as a hardware control implementation.  
-It defines and coordinates operations, but low-level movement and sensor execution belong outside the server.  
-  
-## Core responsibilities  
-  
-| Responsibility | Meaning |  
+| Layer / component | Role |  
 | :--- | :--- |  
-| Task coordination | create, assign, and track warehouse tasks |  
-| State management | manage packages, racks, robots, and task state |  
-| Persistence | store relational warehouse data and execution history |  
-| API exposure | provide server-side endpoints for operational access |  
-| Runtime coordination | keep live state available for decisions and monitoring |  
-| Robot communication | handle server-side communication flow with robots |  
+| Controllers | HTTP/API entry points |  
+| Services | business logic and backend coordination |  
+| DbContext / database | persistent relational state |  
+| `RobotBuffer` | in-memory runtime robot state |  
+| `MqttBackgroundService` | long-lived MQTT communication and message dispatch |  
   
-## Solution structure  
+This means the server is not purely request-response based.  
+It also contains a runtime event-processing side.  
+![[Server Struct.png]]
+## Request-driven side  
+The request-driven side of the backend is entered through HTTP controllers.  
   
-The backend is split into several projects.  
+Typical controller responsibilities:  
+- receive API requests  
+- validate request shape  
+- call appropriate services  
+- return API responses  
   
-| Project | Responsibility |  
+Controllers should remain thin and should not own orchestration-heavy logic.  
+## Runtime-driven side  
+The runtime-driven side is entered through MQTT.  
+  
+`MqttBackgroundService` is responsible for:  
+- connecting to the broker  
+- subscribing to robot topics  
+- receiving messages  
+- routing messages into in-memory channels  
+- running worker loops for processing  
+  
+This part of the backend exists independently from HTTP requests.  
+It is responsible for reacting to robot-originated runtime events.   
+## Services layer  
+Services are the main execution boundary for backend logic.  
+The current structure includes service roles such as:  
+- `PackageService`  
+- `TaskService`  
+- `RobotService`  
+- `TelemetryService`  
+- `DeliveryService`  
+### Current practical role split  
+
+| Service | Current role |  
 | :--- | :--- |  
-| `SmartWarehouse` | application entry point, configuration, controllers |  
-| `SmartWarehouse.Services` | business logic, orchestration, MQTT background logic |  
-| `SmartWarehouse.Models` | domain models, DTOs, enums, wrappers, runtime models |  
-| `SmartWarehouse.Database` | EF Core context and persistence mapping |  
-  
-This structure separates:  
-- API layer  
-- business logic  
-- domain model  
-- database concerns  
-  
-## Runtime layers  
-  
-| Layer | Role |  
-| :--- | :--- |  
-| Controllers | accept HTTP requests and return responses |  
-| Services | contain business logic and workflow coordination |  
-| MQTT background service | handles broker connection and message processing |  
-| Database context | manages relational persistence |  
-| In-memory runtime state | stores live robot-related state for fast access |  
-  
-## Task-driven model  
-  
-The server is task-driven.  
-  
-That means backend operations are organized around executable units of work.  
-  
-Typical flow:  
-1. a request reaches the server  
-2. server logic interprets the requested operation  
-3. a task may be created or updated  
-4. execution-related state is coordinated  
-5. the resulting state is stored or exposed  
-  
-This keeps operational logic centered around tasks rather than ad-hoc actions.  
-  
-## State ownership  
-  
-The server manages two different categories of state.  
-  
-### Persistent state  
-Stored in the database:  
+| `PackageService` | package-related persistence and lookup logic |  
+| `TaskService` | task-local lifecycle and persistence updates |  
+| `RobotService` | robot-related queries and runtime state access |  
+| `TelemetryService` | telemetry ingestion and `RobotBuffer` updates |  
+| `DeliveryService` | intended delivery orchestration root |  
+
+## Persistent state  
+Persistent domain state is stored through the database layer.  
+This includes entities such as:  
+- robots  
 - packages  
 - racks  
-- robots as registered entities  
 - warehouse tasks  
-- users  
-- logs  
+- deliveries or future orchestration data  
   
-### Runtime state  
-Stored in memory:  
-- current robot runtime state  
-- temporary availability information  
-- live operational state derived from incoming events  
+Persistent state is handled through `SmartWarehouseContext` and related services.  
+## Runtime state  
+Not all robot-related information belongs in the database.  
+Live robot operational state is stored separately in memory through `RobotBuffer`.  
+Current runtime state includes:  
+- robot stance  
+- battery level  
+- first-seen live presence in server runtime  
   
-This separation allows the server to remain responsive without treating every live update as persistent history.  
+This separation allows:  
+- fast updates  
+- low DB pressure  
+- runtime-aware robot decisions later  
+## MQTT worker structure  
+The current MQTT architecture uses separated processing flows.  
+### Task worker  
+Task messages are routed into the task channel and processed by the task worker flow.  
+Current V1 task flow:  
+- deserialize `TaskAnswerDTO`  
+- resolve scoped `ITaskService`  
+- branch on `RobotTaskStatus`  
+- update persistent task state  
+### Telemetry worker  
+Telemetry messages are routed into the telemetry channel and processed by the telemetry worker flow.  
+Current V1 telemetry flow:  
+- deserialize `RobotTelemetryDTO`  
+- resolve scoped `ITelemetryService`  
+- update `RobotBuffer`  
+- update `RobotServerState`  
   
-## Communication role  
+This creates two distinct runtime update paths with different priorities and semantics.  
+## State separation  
+A key structural rule is the separation between:  
+- transport contract  
+- runtime server state  
+- persistent domain state  
+### Examples  
   
-The server is responsible for the backend side of robot communication.  
-  
-This includes:  
-- maintaining MQTT-side runtime processing  
-- receiving robot-originated messages  
-- routing messages to the correct processing path  
-- using server-side logic to react to updates  
-  
-The server does not own direct actuator behavior or sensor-level execution.  
-  
-## Important boundaries  
-  
-| Boundary | Why it matters |  
+| Concern | Current representation |  
 | :--- | :--- |  
-| controllers vs services | request handling should stay separate from workflow logic |  
-| services vs transport | business logic should not depend directly on controller or MQTT callback code |  
-| runtime state vs database state | high-frequency live state should not overload persistence |  
-| task coordination vs hardware execution | server intent should stay more abstract than device-level behavior |  
-| core logic vs integrations | ERP, CLI, or outer-server integrations should connect to the server core without owning it |  
+| robot task event from MQTT | `RobotTaskStatus` |  
+| persistent task lifecycle | `TaskStatus` |  
+| incoming telemetry contract | `RobotTelemetryDTO` |  
+| live robot runtime state | `RobotServerState` |  
+| persistent robot identity | `Robot` |  
   
-## Current direction  
+This keeps transport models from collapsing into persistence models.  
+## Scope and lifetime model  
+The backend uses different lifetimes for different components.  
   
-The server already contains the main structural building blocks:  
-- API layer  
-- service layer  
-- persistence layer  
-- runtime state handling  
-- MQTT background processing  
+| Component | Typical lifetime | Reason |  
+| :--- | :--- | :--- |  
+| controllers | per request | request-driven API handling |  
+| DbContext | scoped | safe DB unit-of-work handling |  
+| business services | scoped / transient | isolated per operation |  
+| `MqttBackgroundService` | singleton | long-lived runtime communication |  
+| `RobotBuffer` | singleton | shared live runtime state |  
   
-Some parts are implemented more fully than others, but the structure is already oriented toward a modular backend that can expand without rewriting the whole system.  
+This is important because singleton runtime components should not permanently hold scoped dependencies.  
+## Current V1 architectural state  
+At the current stage, the backend already has working V1 support for:  
+- MQTT task update handling  
+- MQTT telemetry handling  
+- in-memory runtime robot state updates  
+- scoped service dispatch inside worker processing  
+- separation between task flow and telemetry flow  
+  
+At the same time, some architecture is still intentionally unfinished.  
+  
+Still evolving:  
+- full delivery orchestration  
+- retry/reassign policy  
+- route-aware telemetry usage  
+- stronger coordination around task outcome handling  
+## Structural constraints  
+- controllers should stay thin  
+- workers should dispatch, not own orchestration  
+- services should own backend logic, not transport parsing  
+- runtime robot state should remain separate from persistent storage  
+- task and telemetry processing should remain separated  
+- `DeliveryService` should remain the intended orchestration root for future cross-domain flows  
   
 ## Related notes  
   
-- [[Warehouse Tasks]]  
 - [[Warehouse Robotics Backend Architecture]]  
+- [[Service Boundaries]]  
 - [[MQTT Background Service Architecture]]  
+- [[MQTT Topic Flow]]  
+- [[RobotBuffer]]  
 - [[Robot State Management]]  
-- [[Database structure]]  
-- [[Server and Firmware Boundary]]  
-- [[Service Boundaries]]
+- [[SmartWarehouseContext]]

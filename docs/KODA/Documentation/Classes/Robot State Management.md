@@ -10,12 +10,14 @@ tags:
   - memory
   - state
 ---
+
 > [!abstract]
 > Robot state is split into two categories:
 > - persistent state stored in the database
 > - live operational state stored in memory
 >
 > This separation keeps real-time updates fast while preserving a stable relational model for long-term data.
+
 ## Purpose
 Robots produce data with very different update patterns.
 
@@ -25,10 +27,10 @@ Other data changes constantly and is only useful as live runtime state.
 Treating both the same way would make the system harder to scale and harder to reason about.
 ## State categories
 
-| State type       | Storage   | Examples                                            | Update frequency | Main use                                        |
-| :--------------- | :-------- | :-------------------------------------------------- | :--------------- | :---------------------------------------------- |
-| Persistent state | Database  | robot identity, task history, entity relations      | low to medium    | business logic, history, relational consistency |
-| Live state       | In-memory | battery, stance, online status, temporary telemetry | high             | runtime decisions, monitoring, task assignment  |
+| State type | Storage | Examples | Update frequency | Main use |
+| :--- | :--- | :--- | :--- | :--- |
+| Persistent state | Database | robot identity, task history, entity relations | low to medium | business logic, history, relational consistency |
+| Live state | In-memory | battery, stance, online status, temporary telemetry | high | runtime decisions, monitoring, task assignment |
 
 ## Persistent state
 Persistent robot data belongs to the relational model.
@@ -43,7 +45,10 @@ This data should:
 - survive application restarts
 - support querying and auditing
 - remain stable across workflows
+
 ### Example
+
+
 ```csharp
 public class Robot
 {
@@ -52,8 +57,10 @@ public class Robot
     public ICollection<WarehouseTask> Tasks { get; set; } = new List<WarehouseTask>();
 }
 ````
+
 ## Live state
 Live state represents the current operational condition of the robot.
+
 Typical examples:
 - current stance
 - battery level
@@ -63,6 +70,7 @@ Typical examples:
 
 This data changes frequently and should not be written to the database on every update.
 ### Example
+
 ```csharp
 public class RobotServerState
 {
@@ -105,6 +113,16 @@ Updated from runtime events such as:
 - heartbeat or presence changes
 - task progress signals
 - temporary operational decisions
+## Current V1 telemetry path
+In the current V1 implementation, live robot runtime state is updated through the telemetry flow.
+The path is:
+1. robot publishes telemetry through MQTT
+2. `MqttBackgroundService` routes the message into the telemetry channel
+3. the telemetry worker deserializes `RobotTelemetryDTO`
+4. `TelemetryService` handles the DTO
+5. `RobotBuffer` updates or creates the corresponding `RobotServerState`
+
+This means the current source of truth for live robot telemetry is in-memory runtime state, not the database.
 ## How the two layers interact
 The two state layers are related, but they should not be treated as interchangeable.
 
@@ -119,11 +137,28 @@ The two state layers are related, but they should not be treated as interchangea
 This distinction is important because runtime scheduling decisions often depend on both:
 - stable business data from the database
 - current robot condition from memory
+## Current V1 scope
+The current runtime state model is intentionally small.
+It currently focuses on:
+- `RobotId`
+- `Stance`
+- `BatteryLevel`
+
+This is enough for a first working telemetry flow.
+It does not yet attempt to model:
+- route state
+- current node
+- exact position in the warehouse
+- pathfinding context
+- advanced robot health data
+
+Those can be added later if the system actually needs them.
 ## Constraints
 - live telemetry should not be persisted on every update
 - runtime state should be considered volatile
 - persistent domain entities should not become containers for constantly changing telemetry
 - task assignment logic should use current runtime state, not stale database snapshots
+- telemetry ingestion should update runtime state first, not expand immediately into route logic
 ## Risks if the boundary is ignored
 If persistent and live state are mixed together:
 - the database becomes a bottleneck for telemetry
@@ -132,8 +167,9 @@ If persistent and live state are mixed together:
 - responsibilities between background processing and business services become blurred
 
 ## Related notes
-
-- [[Warehouse Robotics Backend Architecture]]
-- [[MQTT Background Service Architecture]]
-- [[Delivery Orchestration Architecture]]
+- [[RobotBuffer]]
 - [[Robot]]
+- [[MQTT Topic Flow]]
+- [[MQTT Background Service Architecture]]
+- [[Warehouse Robotics Backend Architecture]]
+- [[Server and Firmware Boundary]]

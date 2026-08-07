@@ -12,128 +12,202 @@ tags:
   - backend
 ---
 > [!abstract]  
-> The backend is a single ASP.NET Core application that serves two roles:  
-> - a REST API for user-driven operations  
-> - an MQTT client for real-time communication with warehouse robots  
-> 
-> This design keeps business logic, orchestration, and robot communication inside one runtime while separating persistent data from live operational state.  
-  
-![[Relations of Delivery and Task services according to parts.png]]  
-## Core structure  
-  
-The system is built as a monolith with two main interaction paths:  
-  
-- **HTTP / REST**  
-- used by users, dashboards, and administrative actions  
-- triggers business operations such as delivery creation or warehouse management flows  
-  
-- **MQTT**  
-- used for robot communication  
-- handles telemetry, task updates, presence, and command delivery  
-  
-## Main runtime parts  
+> The warehouse robotics backend is a layered server responsible for coordinating persistent warehouse data, live robot communication, and future delivery orchestration.  
+> It combines HTTP-driven business operations with MQTT-driven runtime processing.  
 
-### REST layer  
-The REST API is responsible for:  
-- receiving external requests  
-- validating input  
-- calling application services  
-- returning operation results  
-This layer is request-based and short-lived.  
+## Purpose  
+This note describes the overall backend architecture of the warehouse robotics server.  
+It exists to explain:  
+- what the backend is responsible for  
+- how runtime robot communication enters the server  
+- how services, workers, and storage are separated  
+- what is already implemented in V1  
+- what is still planned for orchestration later  
+## Core backend responsibilities  
+The backend currently has to support several kinds of concerns:  
+- persistent warehouse data  
+- task lifecycle management  
+- live robot runtime state  
+- robot-originated task updates  
+- telemetry ingestion  
+- future delivery orchestration  
+These concerns do not all change at the same speed and should not live in the same abstraction layer.  
+## Main architectural parts  
   
-### Application services  
-Application services contain business logic and workflow coordination.  
+| Part | Responsibility |  
+| :--- | :--- |  
+| Controllers | HTTP entry points for request-driven operations |  
+| Services | backend logic and domain coordination |  
+| `SmartWarehouseContext` | relational persistence |  
+| `RobotBuffer` | in-memory runtime robot state |  
+| `MqttBackgroundService` | MQTT connection, ingestion, and dispatch |  
+| Workers | asynchronous handling of task and telemetry flows |  
+![[Backend-Architecture snippet v1.png]]
+## Dual backend nature  
+The backend is not only an API server.  
+It has two operating modes:  
+### 1. Request-driven mode  
+Used for:  
+- API requests  
+- CRUD-style operations  
+- explicit user or system actions  
 
-Their responsibilities include:  
-- reading and updating persistent data  
-- validating domain operations  
-- orchestrating multi-step workflows  
-- deciding when robot commands should be published  
-### MQTT background processing  
-A long-running background service maintains a persistent MQTT connection.  
-  
-Its responsibilities include:  
-- staying connected to the broker  
-- subscribing to robot topics  
-- receiving incoming messages  
-- routing messages for processing  
-- updating live runtime state  
-### Persistence layer  
-Persistent data is stored in the relational database through EF Core.  
-  
-This includes:  
-- robots  
-- racks  
-- packages  
-- warehouse tasks  
-- users  
-- logs  
-### In-memory runtime state  
-High-frequency robot data is stored in memory rather than persisted on every update.  
-  
-This includes:  
+This enters through controllers and moves through backend services.  
+### 2. Runtime-driven mode  
+Used for:  
+- robot task event updates  
+- telemetry updates  
+- future presence/heartbeat-style events  
+
+This enters through MQTT and moves through background workers.  
+This dual nature is one of the key architectural properties of the system.  
+## Persistent vs runtime state  
+A central architectural split is the distinction between:  
+- persistent state  
+- runtime state  
+### Persistent state  
+Stored in the database:  
+- `Robot`  
+- `Package`  
+- `Rack`  
+- `WarehouseTask`  
+- future delivery-related records  
+### Runtime state  
+Stored in memory:  
+- `RobotServerState`  
 - robot stance  
 - battery level  
-- live status  
-- temporary operational state derived from telemetry  
-## Communication model  
-## 1. Human to backend  
-A user interacts with the system through the REST API.  
-Typical flow:  
-1. a request reaches a controller  
-2. the controller calls an application service  
-3. the service reads or updates database state  
-4. the service may publish a command for a robot  
-5. the result is returned to the client  
+- other live operational values  
   
-## 2. Robot to backend  
-A robot communicates through MQTT.  
-Typical flow:  
-1. the robot publishes telemetry or task-related messages  
-2. the MQTT background service receives the message  
-3. the message is routed by topic  
-4. processing logic updates runtime state or persistent state  
-5. other services can use that state for further decisions  
+The backend uses `RobotBuffer` as the shared in-memory runtime state source.  
+## MQTT runtime processing  
+The MQTT side of the backend is structured so that transport handling remains lightweight.  
+
+The current path is:  
+1. robot publishes MQTT message  
+2. `MqttBackgroundService` receives it  
+3. topic is inspected  
+4. message is routed into a channel  
+5. the correct worker loop processes it  
+6. DTO is deserialized  
+7. scoped service is resolved  
+8. backend logic is applied  
   
-## Data separation  
-A central design rule is the separation between **persistent business data** and **live operational state**.  
+This separates:  
+- transport reception  
+- topic classification  
+- DTO binding  
+- business logic  
+## Current V1 task update architecture  
+Task updates currently flow through:  
+- MQTT topic routing  
+- task channel  
+- task worker  
+- `TaskAnswerDTO`  
+- `ITaskService`  
   
-### Persistent data  
-Stored in the database:  
-- registered robots  
-- packages  
-- racks  
-- task history  
-- delivery-related records  
+The worker branches on `RobotTaskStatus`.  
   
-### Volatile data  
-Stored in memory:  
-- current robot status  
-- battery and telemetry  
-- online/offline presence  
-- fast-changing runtime information  
+Current V1 robot task event meanings:  
+- `Accepted` → runtime handshake only  
+- `Started` → mark task `InProgress`  
+- `Completed` → mark task `Completed`, set completion time, unassign robot  
+- `Failed` → mark task `Failed`, log failure message  
   
-This separation avoids unnecessary database load and keeps real-time processing responsive.  
-## Why this structure matters  
-This architecture supports two different workloads in one system:  
-- **transactional business operations**  
-- correctness matters most  
-- handled through services and database transactions  
+Important distinction:  
+- `RobotTaskStatus` is an incoming robot-side event contract  
+- `TaskStatus` is the persistent server-side task state model  
+## Current V1 telemetry architecture  
+Telemetry currently flows through:  
+- MQTT topic routing  
+- telemetry channel  
+- telemetry worker  
+- `RobotTelemetryDTO`  
+- `ITelemetryService`  
+- `RobotBuffer`  
   
-- **continuous real-time robot communication**  
-- throughput and responsiveness matter most  
-- handled through MQTT and in-memory state  
-Keeping both inside one application simplifies integration while still allowing internal separation of responsibilities.  
+Current V1 telemetry updates:  
+- robot identity in runtime  
+- robot stance  
+- battery level  
+- first-seen runtime registration  
   
-## Constraints  
-- REST request handling must not depend on polling robot state from the database  
-- MQTT message handling must not block incoming traffic  
-- live telemetry must not be treated as persistent domain history  
-- business workflows should be coordinated in the service layer, not spread across unrelated components  
+Telemetry currently updates runtime state only.  
   
+It does not yet:  
+- persist telemetry to the database  
+- perform route checking  
+- participate in pathfinding  
+- drive higher-level orchestration  
+## Current service architecture  
+The current service layer is intentionally split into narrower responsibilities.  
+  
+| Service | Current architectural role |  
+| :--- | :--- |  
+| `PackageService` | package-related persistence and operations |  
+| `TaskService` | task-local lifecycle changes and persistence updates |  
+| `RobotService` | robot-related queries and runtime access |  
+| `TelemetryService` | telemetry ingestion and buffer updates |  
+| `DeliveryService` | intended future orchestration root |  
+  
+This split is important because not all flows belong at the same level.  
+## Orchestration status  
+The long-term architectural direction is for `DeliveryService` to become the orchestration root for multi-step backend flows.  
+  
+That would include concerns such as:  
+- multi-step delivery execution  
+- cross-domain coordination  
+- retry/reassign policy  
+- task outcome consequences at workflow level  
+  
+At the current V1 stage, that orchestration is not fully implemented yet.  
+  
+Instead, some task-local reaction logic currently lives in `TaskService`.  
+  
+This is acceptable for V1 as long as it is treated as a working intermediate structure, not the final orchestration model.  
+## Why the architecture is split this way  
+The backend separates responsibilities because:  
+- robot runtime data changes quickly  
+- task persistence changes more slowly  
+- delivery orchestration spans multiple domains  
+- MQTT runtime traffic should not dictate service design  
+- request-driven and runtime-driven flows need different handling models  
+  
+Without this split, the backend would quickly collapse into:  
+- controllers with too much logic  
+- services with mixed responsibilities  
+- persistence polluted by runtime noise  
+- workers acting as hidden orchestrators  
+## Current V1 status  
+What already works in V1:  
+- MQTT task update handling  
+- MQTT telemetry handling  
+- worker-level DTO dispatch  
+- runtime robot state updates through `RobotBuffer`  
+- task lifecycle updates through `TaskService`  
+- scoped service resolution inside background workers  
+  
+What is still intentionally incomplete:  
+- delivery orchestration  
+- task retry policy  
+- robot reassignment strategy  
+- richer telemetry semantics  
+- route-aware robot state usage  
+## Architectural constraints  
+- controllers should remain thin  
+- MQTT callbacks should remain lightweight  
+- worker loops should dispatch, not orchestrate  
+- runtime robot state should stay out of the database by default  
+- service boundaries should remain explicit  
+- `DeliveryService` should remain the intended orchestration owner later  
+- transport DTOs should not be treated as persistence models  
 ## Related notes  
   
-- [[Delivery Orchestration Architecture]]  
+- [[Server Structure]]  
+- [[Service Boundaries]]  
 - [[MQTT Background Service Architecture]]  
+- [[MQTT Topic Flow]]  
+- [[RobotBuffer]]  
 - [[Robot State Management]]  
-- [[Database structure]]
+- [[Delivery Orchestration Architecture]]  
+- [[Server and Firmware Boundary]]
