@@ -193,10 +193,34 @@ namespace SmartWarehouse.Services.Mqtt {
         }
 
         private async Task ProcessTelemetryAsync(CancellationToken stoppingToken) {
-            // What does?
-            // cache in memory pos of this robot
-            // check route
-            // .
+            try {
+                await foreach (var message in _telemetryChannel.Reader.ReadAllAsync(stoppingToken)) {
+                    try {
+                        string payload = message.ConvertPayloadToString();
+                        _logger.LogInformation($"[TELEMETRY WORKER] Processing: {payload}");
+
+                        var telemetryDTO = JsonSerializer.Deserialize<RobotTelemetryDTO>(payload, _jsonOptions);
+
+                        if (telemetryDTO == null) {
+                            _logger.LogWarning("[TELEMETRY WORKER] Telemetry answer is null");
+                            continue;
+                        }
+
+                        using var scope = _scopeFactory.CreateScope();
+                        var telemetryService = scope.ServiceProvider.GetRequiredService<ITelemetryService>();
+
+                        var res = telemetryService.HandleRobotTelemetry(telemetryDTO);
+                        if (!res.IsSuccess) _logger.LogWarning(res.Message);
+
+                    } catch (Exception ex) {
+                        _logger.LogError(ex, "[TELEMETRY WORKER] Failed to process message");
+                    }
+                }
+            } catch (OperationCanceledException) {
+                _logger.LogInformation("[TELEMETRY WORKER] Stopped gracefully");
+            } catch (Exception ex) {
+                _logger.LogCritical(ex, "[TELEMETRY WORKER] Fatal error, channel reading stopped!");
+            }
         }
 
         // Executed on start 
