@@ -1,5 +1,6 @@
 ﻿using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
+using SmartWarehouse.Models.DTOs;
 using SmartWarehouse.Services;
 using SmartWarehouse.Services.Interfaces;
 
@@ -10,6 +11,11 @@ namespace SmartWarehouse.Controllers {
         private readonly IDeliveryService _deliveryService;
         public DeliveryController(IDeliveryService deliveryService) {
             _deliveryService = deliveryService;
+        }
+
+        [HttpPost("request-package")]
+        public Task<IActionResult> RequestPackageDelivery(DeliveryRequestDTO req) {
+            
         }
     }
 }
