@@ -1,159 +1,198 @@
-
 > [!abstract]  
-> Controllers define the HTTP entry points of the server.  
-> In the current branch, the API surface is still small: package operations and robot runtime state are exposed, while delivery and task flows are present as controller scaffolds for future expansion.  
+> Controllers define the HTTP entry points of the backend API.  
+> In the current implementation, controllers should remain thin and delegate actual logic to backend services rather than coordinating workflows themselves.  
   
 ## Purpose  
-The controller layer is responsible for:  
-- receiving HTTP requests  
-- binding request data  
-- calling the appropriate backend service  
-- returning operation results  
   
-Controllers should expose server capabilities, but should not contain orchestration logic or persistence logic directly.  
+This note describes the current API surface of the server and the role of controllers in the backend architecture.  
+  
+It exists to explain:  
+- which controllers currently exist  
+- what kinds of requests they are intended to handle  
+- how controller responsibilities differ from service responsibilities  
+- which routes are implemented and which are still scaffolded  
+  
+## Controller boundary  
+  
+Controllers should:  
+- accept and validate request shape  
+- call the appropriate backend service  
+- convert service results into HTTP responses  
+  
+Controllers should not:  
+- coordinate delivery workflows directly  
+- resolve cross-domain orchestration  
+- manage MQTT transport behavior  
+- contain persistence-heavy business logic  
+  
+This keeps the HTTP layer narrow and easier to maintain.  
+  
 ## Current controllers  
   
-| Controller           | Main role                     | Current state         |
-| :------------------- | :---------------------------- | :-------------------- |
-| `PackageController`  | package access and mutation   | implemented           |
-| `RobotController`    | robot runtime state access    | partially implemented |
-| `DeliveryController` | delivery-oriented entry point | scaffold              |
-| `TaskController`     | task-oriented entry point     | scaffold              |
+The current backend includes these controllers:  
   
-## Endpoint overview  
+| Controller | Current role | Status |  
+| :--- | :--- | :--- |  
+| `PackageController` | package-related HTTP access | partially implemented |  
+| `TaskController` | task-related HTTP access | mostly scaffolded |  
+| `RobotController` | robot runtime and lookup access | implemented in basic form |  
+| `DeliveryController` | delivery-start workflow entry point | implemented in V1 form |  
+| `TestController` | testing/debug endpoints | utility only |  
   
-| Endpoint                                      | Purpose                     | Backing service   | Current state       |
-| :-------------------------------------------- | :-------------------------- | :---------------- | :------------------ |
-| `GET /api/Package/find?id={id}`               | fetch package by id         | `PackageService`  | implemented         |
-| `POST /api/Package/create`                    | create package              | `PackageService`  | implemented         |
-| `GET /api/Robot/all-robots?onlyActive={bool}` | list live robot states      | `RobotService`    | implemented         |
-| `DeliveryController` routes                   | delivery flow entry points  | `DeliveryService` | not implemented yet |
-| `TaskController` routes                       | task CRUD / task operations | `TaskService`     | commented scaffold  |
+## `PackageController`  
   
-## Controller roles  
-### `PackageController`  
-`PackageController` is the package-facing API entry point.  
+### Current role  
+`PackageController` is responsible for package-facing API requests.  
   
-Current role:  
-- fetch a package by persistent identifier  
-- create a package record  
+### Current scope  
+Its scope may include:  
+- package lookup  
+- package creation  
+- package-related request/response mapping  
   
-Current implementation is backed by `PackageService`, which currently exposes:  
-- `GetPackageByIdAsync`  
-- `CreatePackageAsync`  
+### Architectural note  
+Package-related HTTP entry points should stay package-focused and should not become delivery orchestrators.  
   
-Design direction:  
-- package CRUD belongs here  
-- package lookup in rack context can belong here  
-- package-specific methods that support orchestration may exist, even if they are mainly used by master flows rather than directly by users  
+If a package request starts a multi-step warehouse process, that belongs in `DeliveryController` + `DeliveryService`.  
   
-### `RobotController`  
-`RobotController` is the robot-facing API entry point from the server perspective.  
+## `TaskController`  
   
-Current role:  
-- expose live robot state from the backend  
-- allow filtering for active robots  
+### Current role  
+`TaskController` exists as the task-facing controller, but is still mostly scaffolded.  
   
-Current implementation is backed by `RobotService`, which currently exposes:  
-- `GetAllRobotsAsync(bool? onlyActive)`  
+### Intended scope  
+It may later expose:  
+- task lookup  
+- task inspection  
+- task debugging/admin operations  
   
-Important distinction:  
-- this is currently **runtime robot state exposure**, not full persistent robot CRUD  
-- adding or changing persistent robot entity attributes may still belong to this controller later  
+### Architectural note  
+Task creation used inside delivery orchestration should not require `TaskController` to become the primary delivery entry point.  
   
-Design direction:  
-- robot entity management may stay here  
-- robot runtime state queries belong here  
-- direct task assignment or robot navigation should **not** be exposed as general-purpose controller actions  
+`TaskController` should remain task-focused, not orchestration-focused.  
   
-### `DeliveryController`  
-`DeliveryController` is intended to be the master entry point for delivery-oriented flows.  
+## `RobotController`  
   
-Current role in code:  
-- controller exists  
-- `IDeliveryService` is injected  
-- no routes are implemented yet  
+### Current role  
+`RobotController` exposes robot-related API endpoints.  
   
-Design direction:  
-- create delivery request  
-- check delivery status  
-- act as the orchestration-facing HTTP entry point  
-- coordinate package and task concerns through `DeliveryService`  
+### Current V1 scope  
+Current V1 behavior may include:  
+- getting a robot by id  
+- listing robots  
+- exposing live/runtime-available robots  
+- reflecting the split between persistent `Robot` and runtime `RobotServerState`  
   
-This controller should represent higher-level workflow entry, not only entity CRUD.  
+### Architectural note  
+`RobotController` should remain a read/query surface over robot-related backend services.  
+It should not start taking ownership of telemetry ingestion or delivery orchestration.  
   
-### `TaskController`  
-`TaskController` is intended to expose task-related operations.  
-
-Current role in code:  
-- controller exists  
-- `ITaskService` is injected  
-- task creation route is present only as commented scaffold  
+## `DeliveryController`  
   
-Current service capability:  
-- `TaskService` already supports `CreateTaskAsync(NewTaskDTO)`  
+### Current role  
+`DeliveryController` is the HTTP entry point for starting package delivery flow.  
   
-Design direction:  
-- task CRUD belongs here  
-- task inspection and direct task operations belong here  
-- some task methods may exist mainly for orchestration or internal flow support  
+### Current V1 request  
+The current V1 request is based on:  
+- `TrackingNumber`  
+- `DropoffNodeId`  
   
-## API surface principles  
-The current and intended API surface follows these ideas:  
-- package and robot controllers expose direct entity-oriented access  
-- delivery controller should be the master workflow entry point  
-- task controller exposes task-facing operations, but not full workflow ownership  
-- not every backend capability should become a direct public robot action  
-- robot execution should remain server-coordinated rather than exposed as low-level control endpoints  
+### Current V1 behavior  
+The controller delegates the request to `DeliveryService`, which then:  
+- resolves the package  
+- resolves the rack  
+- selects a robot  
+- creates and assigns a task  
+- updates package state  
+- publishes the outbound task command  
   
-## Boundary with services  
-Controllers should stay thin.  
-Their job is:  
-1. receive request  
-2. call service  
-3. return response  
+### Important note  
+`DeliveryController` is not generic CRUD.  
   
-They should not:  
-- coordinate multi-step delivery flows  
-- perform database work directly  
-- contain robot execution logic  
-- replace service-layer orchestration  
+It represents a workflow entry point:  
+- request delivery of a package  
+- let the backend prepare execution  
+- return a delivery-start result  
   
-## Current implementation observations  
-### What is already implemented  
-- package lookup and creation  
-- robot runtime state listing  
-- DI registration for package, task, and delivery services  
-- controller routing through standard ASP.NET controller mapping  
-### What is scaffolded but not exposed yet  
-- delivery flow endpoints  
-- task endpoints  
-- richer robot management endpoints  
-- full package CRUD surface  
-### What the current code suggests  
-- current API surface is intentionally small  
-- services define more of the intended future shape than controllers currently expose  
-- delivery and task flows are still architectural placeholders in this branch  
-## Interaction model  
+### Boundary  
+`DeliveryController` should remain thin.  
   
-| Controller           | Service           | Type of interaction                |
-| :------------------- | :---------------- | :--------------------------------- |
-| `PackageController`  | `PackageService`  | direct package access and creation |
-| `RobotController`    | `RobotService`    | live robot runtime state query     |
-| `DeliveryController` | `DeliveryService` | intended orchestration entry point |
-| `TaskController`     | `TaskService`     | intended task entry point          |
+It should:  
+- accept request payload  
+- call `DeliveryService`  
+- return success/failure result  
+  
+It should not:  
+- resolve packages directly  
+- select robots directly  
+- create tasks directly  
+- publish MQTT commands directly  
+  
+## `TestController`  
+  
+### Current role  
+`TestController` exists for testing and utility scenarios.  
+  
+### Architectural note  
+It should not become part of core domain flow design.  
+Its role is temporary, supportive, and non-central.  
+  
+## Implemented vs scaffolded surface  
+  
+The current API surface is not fully mature.  
+  
+Some controllers are:  
+- actively used as real entry points  
+- partially implemented  
+- still placeholders for future expansion  
+  
+This is acceptable at the current project stage as long as:  
+- the intended controller/service split stays explicit  
+- workflow ownership remains in services  
+- scaffolds are not mistaken for finished public API design  
+  
+## Relation to service layer  
+  
+The controller-to-service mapping currently looks roughly like this:  
+  
+| Controller | Primary service dependency |  
+| :--- | :--- |  
+| `PackageController` | `IPackageService` |  
+| `TaskController` | `ITaskService` |  
+| `RobotController` | `IRobotService` |  
+| `DeliveryController` | `IDeliveryService` |  
+| `TestController` | test/debug service or ad hoc support |  
+  
+This keeps HTTP concerns separate from business execution.  
+  
+## Current V1 delivery entrypoint significance  
+  
+The `DeliveryController` is important because it now marks the beginning of a full backend workflow rather than a simple CRUD request.  
+  
+That makes it one of the first places where:  
+- the API surface  
+- orchestration  
+- runtime command publication  
+  
+meet in one consistent entrypoint.  
+  
+This is a meaningful architectural step for the backend.  
   
 ## Constraints  
-- controllers should not become workflow coordinators  
-- direct robot navigation/tasking should not be exposed as raw robot endpoints  
-- delivery-oriented operations should flow through the master delivery path  
-- entity controllers should remain narrower than orchestration controllers  
-- test-only controllers and development-only endpoints are not part of the documented API surface  
+  
+- controllers should stay thin  
+- workflow coordination should stay in services  
+- controller methods should not become transport-specific MQTT handlers  
+- delivery start should go through `DeliveryService`  
+- task and robot query endpoints should stay narrow and explicit  
+- scaffolded controllers should not pretend to be full public API until they actually are  
   
 ## Related notes  
   
-- [[Server Structure]]  
 - [[Service Boundaries]]  
+- [[Server Structure]]  
+- [[Warehouse Robotics Backend Architecture]]  
 - [[Delivery Orchestration Architecture]]  
-- [[Warehouse Tasks]]  
-- [[RobotBuffer]]
+- [[Services/DeliveryService]]  
+- [[Services/RobotService]]  
+- [[Services/TaskService]]

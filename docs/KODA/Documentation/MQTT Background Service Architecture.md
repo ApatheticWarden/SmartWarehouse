@@ -1,29 +1,38 @@
 > [!abstract]  
 > The MQTT background service is responsible for maintaining the broker connection, receiving robot messages, and dispatching them for asynchronous processing.  
-> It exists to support continuous robot communication without coupling MQTT traffic to HTTP request handling.  
+> In the current architecture, outbound robot task commands are published through a separate publisher boundary instead of being owned directly by the background service.  
   
 ![[MQTT Background Service Architecture.png]]  
   
 ## Purpose  
-This service handles the runtime side of robot communication.  
+  
+This service handles the inbound runtime side of robot communication.  
   
 Its responsibilities are:  
 - maintain a persistent MQTT connection  
-- subscribe to robot-related topics  
+- subscribe to robot-related inbound topics  
 - receive incoming messages  
 - route messages by topic  
 - process messages asynchronously  
 - isolate high-frequency traffic from the rest of the application  
+  
+It does **not** own delivery orchestration or outbound task command decisions.  
+  
 ## Runtime role  
+  
 The service runs as a long-lived background process.  
   
 This is necessary because:  
 - robot communication must continue independently of HTTP requests  
 - broker connection state must survive across the application lifetime  
 - telemetry and task updates may arrive continuously  
+  
 ## Processing model  
+  
 The service uses a producer-consumer approach.  
+  
 ### Ingestion stage  
+  
 Incoming MQTT messages are received by the MQTT client event handler.  
   
 The handler should stay lightweight:  
@@ -33,22 +42,27 @@ The handler should stay lightweight:
 - return immediately  
   
 The handler should not perform heavy parsing, database work, or long-running business logic.  
+  
 ### Processing stage  
+  
 Separate worker loops consume queued messages and execute the actual processing logic.  
   
 This separation prevents:  
 - blocking the MQTT client  
 - delayed message reception  
 - increased risk of disconnects under load  
+  
 ## Topic handling  
   
 | Topic category | Example purpose | Processing priority | Notes |  
 | :--- | :--- | :--- | :--- |  
 | Task updates | robot task events and task lifecycle progress | High | Must be handled reliably |  
 | Telemetry | battery, stance, live robot data | Medium | High volume, time-sensitive |  
-| Presence / heartbeat | online-offline visibility | High | Not fully implemented yet |  
+  
+Outbound task commands use MQTT too, but they are not owned by the inbound processing loop.  
   
 ## Current V1 task update flow  
+  
 Task update messages are currently routed into the task channel and processed by `ProcessTasksAsync`.  
   
 The V1 task flow currently:  
@@ -56,6 +70,7 @@ The V1 task flow currently:
 - uses `RobotTaskStatus` as the incoming robot-side event contract  
 - resolves `ITaskService` from a scoped service provider  
 - dispatches task update handling to service-level methods  
+  
 ### Current robot task event meanings  
   
 | Robot task status | Meaning | Current server reaction |  
@@ -66,12 +81,15 @@ The V1 task flow currently:
 | `Failed` | robot failed to execute the task | task becomes `Failed`, failure is logged |  
   
 ### Important distinction  
+  
 The task update flow separates:  
 - `RobotTaskStatus` as an incoming robot-side event contract  
 - `TaskStatus` as server-side persistent task state  
   
 This prevents the transport contract from being treated as the same thing as the persistent workflow model.  
+  
 ## Current V1 telemetry flow  
+  
 Telemetry messages are currently routed into the telemetry channel and processed by `ProcessTelemetryAsync`.  
   
 The V1 telemetry flow currently:  
@@ -87,8 +105,43 @@ It does not currently:
 - perform route checking  
 - perform pathfinding decisions  
 - trigger broader orchestration behavior  
+  
+## Outbound command boundary  
+  
+Outbound robot task command publishing exists in the current architecture, but it is intentionally separated from the inbound background worker role.  
+  
+This is handled through:  
+- `IRobotCommandPublisher`  
+- `MqttRobotCommandPublisher`  
+  
+The publisher is responsible for:  
+- serializing command payloads  
+- publishing to `smartwh/robots/{robotId}/task/command`  
+  
+It is **not** responsible for:  
+- delivery orchestration decisions  
+- task lifecycle interpretation  
+- inbound runtime processing  
+  
+## Why outbound publish is separate  
+  
+Keeping outbound publish outside the background service helps prevent one transport-heavy class from becoming responsible for:  
+- broker connection monitoring  
+- inbound topic routing  
+- worker-loop processing  
+- outbound command orchestration  
+- task-level business decisions  
+  
+The goal is to keep:  
+- inbound runtime processing  
+- outbound command transport  
+- orchestration decisions  
+  
+as distinct boundaries.  
+  
 ## Channel strategy  
-The service uses separate channels for different message types.  
+  
+The service uses separate channels for different inbound message types.  
   
 | Channel | Typical payload | Buffer strategy | Overflow behavior | Reason |  
 | :--- | :--- | :--- | :--- | :--- |  
@@ -99,25 +152,29 @@ This separation reflects different operational priorities.
   
 Task updates affect workflow correctness.  
 Telemetry mainly reflects current state and loses value quickly when outdated.  
+  
 ## Scoped dependency handling  
+  
 The background service itself is long-lived, but many application dependencies should remain short-lived.  
   
 | Component type | Lifetime | Usage rule |  
 | :--- | :--- | :--- |  
-| MQTT background service | Singleton | owns connection and worker loops |  
+| MQTT background service | Singleton | owns connection and inbound worker loops |  
 | database context | Scoped | created only when processing a message |  
 | business services | Scoped / transient | resolved inside a processing scope |  
   
 This matters because scoped dependencies should not be held directly by a singleton for the full application lifetime.  
   
-For message processing, the safe pattern is:  
+For inbound message processing, the safe pattern is:  
 1. dequeue message  
 2. deserialize the transport DTO  
 3. create scope  
 4. resolve required service  
 5. process message  
 6. dispose scope  
+  
 ## Connection management  
+  
 Connection lifecycle should be managed in its own loop.  
   
 Main responsibilities:  
@@ -134,7 +191,9 @@ Typical behavior:
 3. wait briefly  
 4. retry connection  
 5. resubscribe to required topics  
+  
 ## Failure considerations  
+  
 The service should tolerate:  
 - broker disconnects  
 - malformed payloads  
@@ -145,22 +204,28 @@ Failures should be isolated so that:
 - one bad message does not stop the whole service  
 - connection handling continues  
 - other queued messages can still be processed  
-## Current limitations  
-The current V1 implementation still leaves several things for later:  
   
+## Current limitations  
+  
+The current V1 implementation still leaves several things for later:  
 - retry policy for failed tasks  
 - delivery-level orchestration after task events  
 - telemetry-aware routing logic  
 - heartbeat/presence modeling as a first-class flow  
 - richer robot runtime data beyond stance and battery  
+- better outbound MQTT client reuse/lifecycle design  
+  
 ## Constraints  
+  
 - MQTT receive handlers must stay lightweight  
 - DTO deserialization should happen in the worker, not in downstream services  
 - task and telemetry flows should remain separated  
 - long-lived singleton state must not directly hold scoped services  
 - task updates should be handled more conservatively than telemetry  
 - reconnection must restore subscriptions automatically  
+- inbound processing and outbound command publishing should stay separate  
 - MQTT transport flow should not become the place where business orchestration lives  
+  
 ## Related notes  
   
 - [[MQTT Topic Flow]]  
@@ -168,4 +233,5 @@ The current V1 implementation still leaves several things for later:
 - [[Robot State Management]]  
 - [[Service Boundaries]]  
 - [[Server Structure]]  
-- [[Delivery Orchestration Architecture]]
+- [[Delivery Orchestration Architecture]]  
+- [[Services/RobotCommandPublisher]]

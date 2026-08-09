@@ -11,13 +11,13 @@ tags:
   - iot
   - backend
 ---
-> [!abstract]  
-> The warehouse robotics backend is a layered server responsible for coordinating persistent warehouse data, live robot communication, and future delivery orchestration.  
-> It combines HTTP-driven business operations with MQTT-driven runtime processing.  
 
-## Purpose  
+> [!abstract]  
+> The warehouse robotics backend is a layered server responsible for coordinating persistent warehouse data, live robot communication, delivery-start orchestration, and future workflow expansion.  
+> It combines HTTP-driven business operations with MQTT-driven runtime processing and outbound robot command publication.rpose  
 This note describes the overall backend architecture of the warehouse robotics server.  
 It exists to explain:  
+
 - what the backend is responsible for  
 - how runtime robot communication enters the server  
 - how services, workers, and storage are separated  
@@ -30,18 +30,23 @@ The backend currently has to support several kinds of concerns:
 - live robot runtime state  
 - robot-originated task updates  
 - telemetry ingestion  
-- future delivery orchestration  
-These concerns do not all change at the same speed and should not live in the same abstraction layer.  
-## Main architectural parts  
+- outbound robot command publishing  
+- delivery-start orchestration  
+- future delivery orchestration growth  
   
-| Part | Responsibility |  
-| :--- | :--- |  
-| Controllers | HTTP entry points for request-driven operations |  
-| Services | backend logic and domain coordination |  
-| `SmartWarehouseContext` | relational persistence |  
-| `RobotBuffer` | in-memory runtime robot state |  
-| `MqttBackgroundService` | MQTT connection, ingestion, and dispatch |  
-| Workers | asynchronous handling of task and telemetry flows |  
+These concerns do not all change at the same speed and should not live in the same abstraction layer.
+## Main architectural parts
+
+| Part                                                   | Responsibility                                    |
+| :----------------------------------------------------- | :------------------------------------------------ |
+| Controllers                                            | HTTP entry points for request-driven operations   |
+| Services                                               | backend logic and domain coordination             |
+| `SmartWarehouseContext`                                | relational persistence                            |
+| `RobotBuffer`                                          | in-memory runtime robot state                     |
+| `MqttBackgroundService`                                | inbound MQTT connection, ingestion, and dispatch  |
+| `IRobotCommandPublisher` / `MqttRobotCommandPublisher` | outbound MQTT task command transport              |
+| Workers                                                | asynchronous handling of task and telemetry flows |
+
 ![[Backend-Architecture snippet v1.png]]
 ## Dual backend nature  
 The backend is not only an API server.  
@@ -54,13 +59,14 @@ Used for:
 
 This enters through controllers and moves through backend services.  
 ### 2. Runtime-driven mode  
+  
 Used for:  
 - robot task event updates  
 - telemetry updates  
+- outbound robot task commands  
 - future presence/heartbeat-style events  
-
-This enters through MQTT and moves through background workers.  
-This dual nature is one of the key architectural properties of the system.  
+  
+This enters through MQTT and moves through background workers or outbound publish boundaries.
 ## Persistent vs runtime state  
 A central architectural split is the distinction between:  
 - persistent state  
@@ -98,6 +104,18 @@ This separates:
 - topic classification  
 - DTO binding  
 - business logic  
+## Outbound robot command publishing  
+The current backend architecture now includes an outbound MQTT command path.  
+This path is used after delivery-start orchestration succeeds.  
+
+The current outbound flow is:  
+1. `DeliveryService` completes delivery-start orchestration  
+2. a `RobotTaskCommandDTO` is built  
+3. `IRobotCommandPublisher` is called  
+4. the payload is serialized  
+5. the command is published to `smartwh/robots/{robotId}/task/command`  
+  
+This keeps outbound transport logic separate from orchestration decisions.
 ## Current V1 task update architecture  
 Task updates currently flow through:  
 - MQTT topic routing  
@@ -117,54 +135,61 @@ Current V1 robot task event meanings:
 Important distinction:  
 - `RobotTaskStatus` is an incoming robot-side event contract  
 - `TaskStatus` is the persistent server-side task state model  
-## Current V1 telemetry architecture  
-Telemetry currently flows through:  
-- MQTT topic routing  
-- telemetry channel  
-- telemetry worker  
-- `RobotTelemetryDTO`  
-- `ITelemetryService`  
-- `RobotBuffer`  
+## Current V1 delivery-start architecture  
   
-Current V1 telemetry updates:  
-- robot identity in runtime  
-- robot stance  
-- battery level  
-- first-seen runtime registration  
+Delivery-start flow currently runs through:  
+- `DeliveryController`  
+- `DeliveryService`  
+- `PackageService`  
+- `RackService`  
+- `RobotService`  
+- `TaskService`  
+- `IRobotCommandPublisher`  
   
-Telemetry currently updates runtime state only.  
+The current V1 delivery-start flow:  
+- resolves package by tracking number  
+- validates rack reference  
+- resolves rack  
+- selects an available robot  
+- creates a task  
+- assigns the robot  
+- updates package state  
+- publishes outbound robot task command  
   
-It does not yet:  
-- persist telemetry to the database  
-- perform route checking  
-- participate in pathfinding  
-- drive higher-level orchestration  
+A successful result means orchestration has started, not that physical delivery has already completed.
 ## Current service architecture  
 The current service layer is intentionally split into narrower responsibilities.  
-  
-| Service | Current architectural role |  
-| :--- | :--- |  
-| `PackageService` | package-related persistence and operations |  
-| `TaskService` | task-local lifecycle changes and persistence updates |  
-| `RobotService` | robot-related queries and runtime access |  
-| `TelemetryService` | telemetry ingestion and buffer updates |  
-| `DeliveryService` | intended future orchestration root |  
-  
+
+| Service                                                | Current architectural role                           |
+| :----------------------------------------------------- | :--------------------------------------------------- |
+| `PackageService`                                       | package-related persistence and operations           |
+| `RackService`                                          | rack-related lookup and persistence access           |
+| `TaskService`                                          | task-local lifecycle changes and persistence updates |
+| `RobotService`                                         | robot-related runtime queries and simple selection   |
+| `TelemetryService`                                     | telemetry ingestion and buffer updates               |
+| `DeliveryService`                                      | V1 delivery-start orchestration owner                |
+| `IRobotCommandPublisher` / `MqttRobotCommandPublisher` | outbound MQTT robot command transport                |
 This split is important because not all flows belong at the same level.  
 ## Orchestration status  
-The long-term architectural direction is for `DeliveryService` to become the orchestration root for multi-step backend flows.  
   
-That would include concerns such as:  
-- multi-step delivery execution  
-- cross-domain coordination  
+The long-term architectural direction is for `DeliveryService` to remain the orchestration root for multi-step backend delivery flow.  
+  
+At the current stage, it already owns the V1 delivery-start workflow.  
+  
+That currently includes:  
+- package resolution  
+- rack resolution  
+- robot selection  
+- task creation and assignment coordination  
+- package state update  
+- outbound command publication  
+  
+What is still not fully implemented:  
 - retry/reassign policy  
-- task outcome consequences at workflow level  
-  
-At the current V1 stage, that orchestration is not fully implemented yet.  
-  
-Instead, some task-local reaction logic currently lives in `TaskService`.  
-  
-This is acceptable for V1 as long as it is treated as a working intermediate structure, not the final orchestration model.  
+- richer delivery lifecycle model  
+- delivery completion orchestration  
+- route-aware robot selection  
+- advanced recovery after partial runtime failure
 ## Why the architecture is split this way  
 The backend separates responsibilities because:  
 - robot runtime data changes quickly  
@@ -185,14 +210,18 @@ What already works in V1:
 - worker-level DTO dispatch  
 - runtime robot state updates through `RobotBuffer`  
 - task lifecycle updates through `TaskService`  
+- delivery-start request flow through `DeliveryController`  
+- delivery-start orchestration through `DeliveryService`  
+- outbound MQTT task command publication  
 - scoped service resolution inside background workers  
   
 What is still intentionally incomplete:  
-- delivery orchestration  
-- task retry policy  
-- robot reassignment strategy  
-- richer telemetry semantics  
-- route-aware robot state usage  
+- retry/reassign policy  
+- richer delivery lifecycle model  
+- route-aware robot selection  
+- advanced rack/storage behavior  
+- delivery completion orchestration  
+- outbound MQTT client reuse/lifecycle cleanup
 ## Architectural constraints  
 - controllers should remain thin  
 - MQTT callbacks should remain lightweight  
@@ -200,7 +229,9 @@ What is still intentionally incomplete:
 - runtime robot state should stay out of the database by default  
 - service boundaries should remain explicit  
 - `DeliveryService` should remain the intended orchestration owner later  
-- transport DTOs should not be treated as persistence models  
+- transport DTOs should not be treated as persistence models 
+- outbound robot command publication should stay separate from orchestration decision logic  
+- `DeliveryService` should remain the owner of delivery-start flow, not controllers or MQTT infrastructure
 ## Related notes  
   
 - [[Server Structure]]  
@@ -211,3 +242,6 @@ What is still intentionally incomplete:
 - [[Robot State Management]]  
 - [[Delivery Orchestration Architecture]]  
 - [[Server and Firmware Boundary]]
+- [[Services/DeliveryService]]  
+- [[Services/RobotCommandPublisher]]  
+- [[Services/RackService]]

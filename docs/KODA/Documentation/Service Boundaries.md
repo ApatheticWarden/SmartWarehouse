@@ -19,15 +19,17 @@ Without clear boundaries, services tend to become:
 The intended design is for each service to own one area of backend behavior clearly.  
 ## Current services  
 The server currently defines these main service roles:  
-  
-| Service            | Current role                                        | Status                         |
-| :----------------- | :-------------------------------------------------- | :----------------------------- |
-| `PackageService`   | package-related persistence and lookup logic        | partially implemented          |
-| `TaskService`      | task-local persistence and task lifecycle reactions | implemented in V1 form         |
-| `RobotService`     | access to robot-related runtime or persistent data  | implemented in basic form      |
-| `TelemetryService` | telemetry ingestion and runtime robot state updates | implemented in V1 form         |
-| `DeliveryService`  | delivery-level orchestration                        | scaffold / not implemented yet |
-  
+
+| Service                                                | Current role                                               | Status                    |
+| :----------------------------------------------------- | :--------------------------------------------------------- | :------------------------ |
+| `PackageService`                                       | package-related persistence and lookup logic               | implemented in basic form |
+| `RackService`                                          | rack lookup and rack-related persistence access            | implemented in basic form |
+| `TaskService`                                          | task-local persistence and task lifecycle reactions        | implemented in V1 form    |
+| `RobotService`                                         | runtime robot queries and simple selection logic           | implemented in V1 form    |
+| `TelemetryService`                                     | telemetry ingestion and runtime robot state updates        | implemented in V1 form    |
+| `DeliveryService`                                      | delivery-start orchestration and cross-domain coordination | implemented in V1 form    |
+| `IRobotCommandPublisher` / `MqttRobotCommandPublisher` | outbound MQTT task command transport                       | implemented in V1 form    |
+
 ## `PackageService`  
 ### Responsibility  
 `PackageService` should own package-related backend operations.  
@@ -159,18 +161,18 @@ This service is the natural place for:
 - firmware implementation details  
 - direct actuator behavior  
 ## Boundary summary  
-  
-| Concern                                          | PackageService | TaskService | RobotService | TelemetryService |            DeliveryService             |
-| :----------------------------------------------- | :------------: | :---------: | :----------: | :--------------: | :------------------------------------: |
-| package persistence and lookup                   |       ✅        |      ❌      |      ❌       |        ❌         |           ⚠️ uses indirectly           |
-| task creation and persistence                    |       ❌        |      ✅      |      ❌       |        ❌         |           ⚠️ may coordinate            |
-| task event reaction (`Started/Completed/Failed`) |       ❌        |      ✅      |      ❌       |        ❌         | ⚠️ may later absorb cross-domain parts |
-| live robot runtime state queries                 |       ❌        |      ❌      |      ✅       |        ❌         |               ⚠️ may use               |
-| telemetry ingestion and runtime updates          |       ❌        |      ❌      |      ❌       |        ✅         |                   ❌                    |
-| delivery workflow orchestration                  |       ❌        |      ❌      |      ❌       |        ❌         |                   ✅                    |
-| robot hardware behavior                          |       ❌        |      ❌      |      ❌       |        ❌         |                   ❌                    |
-| MQTT transport handling                          |       ❌        |      ❌      |      ❌       |        ❌         |                   ❌                    |
-  
+| Concern                                          | PackageService | RackService | TaskService | RobotService | TelemetryService |            DeliveryService             | RobotCommandPublisher |
+| :----------------------------------------------- | :------------: | :---------: | :---------: | :----------: | :--------------: | :------------------------------------: | :-------------------: |
+| package persistence and lookup                   |       ✅        |      ❌      |      ❌      |      ❌       |        ❌         |           ⚠️ uses indirectly           |           ❌           |
+| rack lookup and storage access                   |       ❌        |      ✅      |      ❌      |      ❌       |        ❌         |           ⚠️ uses indirectly           |           ❌           |
+| task creation and persistence                    |       ❌        |      ❌      |      ✅      |      ❌       |        ❌         |             ⚠️ coordinates             |           ❌           |
+| task event reaction (`Started/Completed/Failed`) |       ❌        |      ❌      |      ✅      |      ❌       |        ❌         | ⚠️ may later absorb cross-domain parts |           ❌           |
+| live robot runtime state queries                 |       ❌        |      ❌      |      ❌      |      ✅       |        ❌         |               ⚠️ may use               |           ❌           |
+| telemetry ingestion and runtime updates          |       ❌        |      ❌      |      ❌      |      ❌       |        ✅         |                   ❌                    |           ❌           |
+| delivery workflow orchestration                  |       ❌        |      ❌      |      ❌      |      ❌       |        ❌         |                   ✅                    |           ❌           |
+| outbound robot command publishing                |       ❌        |      ❌      |      ❌      |      ❌       |        ❌         |              ⚠️ triggers               |           ✅           |
+| robot hardware behavior                          |       ❌        |      ❌      |      ❌      |      ❌       |        ❌         |                   ❌                    |           ❌           |
+| MQTT transport handling                          |       ❌        |      ❌      |      ❌      |      ❌       |        ❌         |                   ❌                    |   ⚠️ outbound only    |
 ## Service interaction model  
 A useful intended interaction model is:  
   
@@ -184,13 +186,15 @@ A useful intended interaction model is:
 This keeps logic from leaking across layers.  
 ## Current implementation observations  
 From the current branch:  
-- `PackageService` is still a straightforward domain service  
-- `TaskService` now contains a V1 task-event reaction layer  
-- `RobotService` remains focused on robot-side access/query concerns  
-- `TelemetryService` now owns telemetry-to-buffer updates  
-- `DeliveryService` still represents intended architecture more than current behavior  
+- `PackageService` remains a straightforward domain service  
+- `RackService` now exists as a rack lookup/access boundary  
+- `TaskService` contains a V1 task-event reaction layer and task-local operations  
+- `RobotService` now supports runtime access and simple V1 robot selection  
+- `TelemetryService` owns telemetry-to-buffer updates  
+- `DeliveryService` now acts as the V1 delivery-start orchestration owner  
+- `MqttRobotCommandPublisher` owns outbound task command publication  
   
-This is acceptable for the current stage, as long as the intended boundaries stay explicit.  
+This is acceptable for the current stage as long as the intended boundaries stay explicit.
 ## Boundary rules  
   
 - controllers should not contain orchestration logic  
