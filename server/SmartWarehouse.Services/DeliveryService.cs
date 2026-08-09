@@ -1,4 +1,4 @@
-﻿using Microsoft.Extensions.DependencyModel.Resolution;
+using Microsoft.Extensions.DependencyModel.Resolution;
 using SmartWarehouse.Database;
 using SmartWarehouse.Models;
 using SmartWarehouse.Models.DTOs;

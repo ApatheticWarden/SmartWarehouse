@@ -1,4 +1,4 @@
-﻿using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Logging;
 using SmartWarehouse.Database;
 using SmartWarehouse.Models;
 using SmartWarehouse.Models.DTOs;

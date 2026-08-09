@@ -1,4 +1,4 @@
-﻿using SmartWarehouse.Models;
+using SmartWarehouse.Models;
 using SmartWarehouse.Models.Wrappers;
 
 namespace SmartWarehouse.Services.Interfaces {
