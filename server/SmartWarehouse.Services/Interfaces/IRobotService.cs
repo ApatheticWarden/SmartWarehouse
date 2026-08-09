@@ -3,7 +3,8 @@ using SmartWarehouse.Models.Wrappers;
 
 namespace SmartWarehouse.Services.Interfaces {
     public interface IRobotService {
-        Task<Envelope<List<RobotServerState>>> GetAllRobotsAsync(bool? onlyActive);
+        Task<Envelope<List<RobotServerState>>> GetAllRobotsAsync(bool onlyActive = false);
         Task<Envelope<Robot>> GetRobotById(int robot);
+        Task<Envelope<RobotServerState>> PickFirstIdleRobot();
     }
 }

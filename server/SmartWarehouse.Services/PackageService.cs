@@ -1,5 +1,6 @@
 ﻿using Azure.Core;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
 using SmartWarehouse.Database;
 using SmartWarehouse.Models;
@@ -20,6 +21,12 @@ namespace SmartWarehouse.Services {
             return package;
         }
 
+        public async Task<Envelope<Package>> GetPackageByTrackingNumber(string track) {
+            var package = await _context.Packages.FirstOrDefaultAsync(p => p.TrackingNumber.Equals(track));
+            if (package == null) return Envelope<Package>.Error($"[PACKAGE SERVICE] Cant find package with track-number [{track}]");
+            return package;
+        }
+            
         public async Task<Envelope<Package>> CreatePackageAsync(PackageCreationDTO creationDTO) {
             var package = new Package {
                 TrackingNumber = creationDTO.TrackingNumber,

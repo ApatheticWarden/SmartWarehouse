@@ -14,8 +14,10 @@ namespace SmartWarehouse.Controllers {
         }
 
         [HttpPost("request-package")]
-        public Task<IActionResult> RequestPackageDelivery(DeliveryRequestDTO req) {
-            
+        public async Task<IActionResult> RequestPackageDelivery(DeliveryRequestDTO req) {
+            var res = await _deliveryService.StartDeliveryAsync(req);
+            if (!res.IsSuccess) return BadRequest(res.Message);
+            return Ok(res.Payload);
         }
     }
 }
