@@ -1,4 +1,4 @@
-﻿using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Logging;
 using SmartWarehouse.Database;
 using SmartWarehouse.Models;
 using SmartWarehouse.Models.DTOs;
@@ -128,7 +128,6 @@ namespace SmartWarehouse.Services {
             return task;
         }
 
-        // Legacy (?)
         public async Task<Envelope<WarehouseTask>> AssignRobotAsync(int taskId, int? robotId) {
             var res = await GetTaskByIdAsync(taskId);
             if (!res.IsSuccess) return Envelope<WarehouseTask>.Error(res.Message!);

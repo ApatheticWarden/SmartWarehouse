@@ -1,4 +1,4 @@
-﻿using SmartWarehouse.Models;
+using SmartWarehouse.Models;
 using SmartWarehouse.Models.DTOs;
 using SmartWarehouse.Models.Wrappers;
 using System;
@@ -11,5 +11,6 @@ namespace SmartWarehouse.Services.Interfaces {
     public interface IPackageService {
         Task<Envelope<Package>> CreatePackageAsync(PackageCreationDTO creationDTO);
         Task<Envelope<Package>> GetPackageByIdAsync(int id);
+        Task<Envelope<Package>> GetPackageByTrackingNumber(string track);
     }
 }

@@ -1,4 +1,4 @@
-﻿using Microsoft.IdentityModel.Tokens;
+using Microsoft.IdentityModel.Tokens;
 using SmartWarehouse.Database;
 using SmartWarehouse.Models;
 using SmartWarehouse.Models.Enums;
@@ -14,7 +14,7 @@ namespace SmartWarehouse.Services {
             _context = context;
         }
 
-        public async Task<Envelope<List<RobotServerState>>> GetAllRobotsAsync(bool? onlyActive) {
+        public async Task<Envelope<List<RobotServerState>>> GetAllRobotsAsync(bool onlyActive = false) {
             var query = _buffer.GetAllStates();
             if (onlyActive == true) {
                 query = query.Where(r => r.Stance == RobotStance.Idle);
@@ -27,6 +27,12 @@ namespace SmartWarehouse.Services {
         public async Task<Envelope<Robot>> GetRobotById(int robotId) {
             var robot = await _context.Robots.FindAsync(robotId);
             if (robot == null) return Envelope<Robot>.Error($"[ROBOT SERVICE] Robot with id {robotId} was not found");
+            return robot;
+        }
+
+        public async Task<Envelope<RobotServerState>> PickFirstIdleRobot() {
+            var robot = _buffer.GetAllStates().ToList().FirstOrDefault(r => r.Stance == RobotStance.Idle);
+            if (robot == null) return Envelope<RobotServerState>.Error("[ROBOT SERVICE] Can`t find avaliable robot");
             return robot;
         }
     }

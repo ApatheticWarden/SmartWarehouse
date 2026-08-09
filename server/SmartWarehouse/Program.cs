@@ -17,7 +17,9 @@ builder.Services.AddScoped<IPackageService, PackageService>();
 builder.Services.AddScoped<IDeliveryService, DeliveryService>();
 builder.Services.AddScoped<ITaskService, TaskService>();
 builder.Services.AddScoped<ITelemetryService, TelemetryService>();
-
+builder.Services.AddScoped<IRackService, RackService>();
+builder.Services.AddScoped<IRobotService, RobotService>();
+builder.Services.AddScoped<IRobotCommandPublisher, MqttRobotCommandPublisher>();
 
 // MQTT Background Service reg
 // Every backhround service must inherit BackhroundService!
