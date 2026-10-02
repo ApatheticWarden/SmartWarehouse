@@ -1,4 +1,5 @@
 #ifndef MOTORDRIVER_H
+#include <cstdint>
 #define MOTORDRIVER_H
 
 class Motor{
@@ -6,8 +7,8 @@ class Motor{
     uint8_t INS;
     public:
         // Getters        
-        uint8_t GetFirstPin();
-        uint8_t GetSecondPin();
+        uint8_t GetFirstPin() const;
+        uint8_t GetSecondPin() const;
 
         // Declare constructor
         Motor(int first, int second);

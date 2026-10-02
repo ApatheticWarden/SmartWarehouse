@@ -1,8 +1,7 @@
+#ifndef ROBOTUTILS_H
 #include <Motor/MotorDriver.h>
 #include <UltraSonic/UltraSonic.h>
 #include <Utils/Timer.h>
-
-#ifndef ROBOTUTILS_H
 #define ROBOTUTILS_H
 
 class Robot{

@@ -1,10 +1,9 @@
+#ifndef TIMER_H
 #include <freertos/FreeRTOS.h>
 #include <freertos/task.h>
 #include <atomic>
 #include <Utils/Task.h>
 #include <functional>
-
-#ifndef TIMER_H
 #define TIMER_H
 
 class Timer: public Task{

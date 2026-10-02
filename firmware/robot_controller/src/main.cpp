@@ -1,7 +1,7 @@
 #include <Arduino.h>
 #include <Utils/RobotUtils.h>
 #include <Utils/Timer.h>
-
+#include <WiFi.h>
 // constexpr - must be init at compile time
 // const - in compile or runtime
 constexpr uint8_t TRIGGER_PIN = 42;
@@ -21,8 +21,28 @@ Robot ROBOT(Left, Right, US1);
 bool moving = false;
 bool obstacle = false;
 
+// US Task
+Task sensorTask([](){
+        while (true) {
+            ulTaskNotifyTake(pdTRUE, portMAX_DELAY); 
+            // 1 arg is for "what to do when called while slept". Speaking widely - "Should i zero my counter or not"
+            // 2 is how long you will wait
+            US1.StartScan();
+        }
+    });
+
 void setup() {
     Serial.begin(115200);
+
+    WiFi.begin("Orange_Swiatlowod_6A20", "YD4sd7fDuPiHSYCSQg");
+    while (WiFi.status() != WL_CONNECTED) {
+        delay(500);
+    }
+    
+    Serial.println("WiFi connected");
+
+    sensorTask.Start("UlSo1", 2048, 1, 1);
+
     ROBOT.Assemble();
 }
 
@@ -32,17 +52,17 @@ void loop() {
     unsigned long currentMillis = millis();
 
     if (currentMillis - lastSonarTrigger >= 60){
-        ROBOT.US.SendTrigg();
+        xTaskNotifyGive(sensorTask.GetHandle());
         lastSonarTrigger = currentMillis;
     }
 
-    long dist = ROBOT.CheckDistance(); // Get "prev." distance
+    long dist = US1.GetDistance(); // Get "prev." distance
 
-    if( dist > 0 && dist < 30){
-        Serial.print("OBSTACLE");
+    if (dist <= 0) {
+        Serial.write("Sensor data read incorrectly");
+    } else if (dist < 30) {
         ROBOT.FullStop();
-    }else{
+    } else {
         ROBOT.MoveForward();
     }
-
 }

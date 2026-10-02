@@ -18,26 +18,8 @@ uint8_t UltraSonic::GetEchoPin(){
 void UltraSonic::Init(){
     pinMode(TRIGGER_PIN, OUTPUT);
     pinMode(ECHO_PIN, INPUT);
-
-    attachInterruptArg(digitalPinToInterrupt(ECHO_PIN), EchoISR, this, CHANGE);
 }
 
-void IRAM_ATTR UltraSonic::EchoISR(void* arg) {
-    // Restore pointer to our instance
-    UltraSonic* instance = static_cast<UltraSonic*>(arg);
-    unsigned long now = micros();
-
-    if (digitalRead(instance->ECHO_PIN) == HIGH) {
-        // Catch echo start
-        instance->echoStartTime = now;
-    } else {
-        // Catch echo end
-        unsigned long duration = now - instance->echoStartTime;
-        
-        // convert to centimeters and store
-        instance->currentDistance.store(duration / 58, std::memory_order_relaxed);
-    }
-}
 
 // refactor to non-blocking shit
 // Try to use interrupts
@@ -55,6 +37,14 @@ long UltraSonic::GetDistance(){
 
 long UltraSonic::StartScan(){
     SendTrigg();
-  
+
+    long duration = pulseIn(ECHO_PIN, HIGH, 30000UL);
+
+    if (duration > 0) {
+        currentDistance.store(duration / 58, std::memory_order_relaxed);
+    } else {
+        currentDistance.store(-1, std::memory_order_relaxed);
+    }
+
     return GetDistance();
 }

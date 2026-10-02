@@ -6,6 +6,14 @@ Motor::Motor(int first, int second){
     INS = second;
 }
 
+uint8_t Motor::GetFirstPin() const{
+    return INF;
+}
+
+uint8_t Motor::GetSecondPin() const{
+    return INS;
+}
+
 void Motor::Init(){
     pinMode(INF, OUTPUT);
     pinMode(INS, OUTPUT);

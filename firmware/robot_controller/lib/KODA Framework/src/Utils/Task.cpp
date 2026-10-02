@@ -1,8 +1,9 @@
 #include<iostream>
 #include<Utils/Task.h>
 
-Task::Task() : taskHandle(nullptr) {}
 Task::~Task(){ Delete(); }
+
+TaskHandle_t Task::GetHandle() const { return taskHandle; }
 
 // This is C-like thingy
 void Task::Start(const std::string& taskName, uint16_t stackSize, UBaseType_t priority, BaseType_t coreId){
