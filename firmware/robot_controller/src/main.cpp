@@ -1,6 +1,7 @@
 #include <Arduino.h>
-#include <Utils/RobotUtils.h>
-#include <Utils/Timer.h>
+#include <Core/RobotUtils.h>
+#include <Flow/Task.h>
+#include <Comm/MQTTHandler.h>
 #include <WiFi.h>
 // constexpr - must be init at compile time
 // const - in compile or runtime
@@ -18,6 +19,16 @@ UltraSonic US1(TRIGGER_PIN, ECHO_PIN);
 
 Robot ROBOT(Left, Right, US1);
 
+MQTTConfig MqttConfig(
+    MQTT_BROCKER,
+    MQTT_PORT,
+    "DLU-01",
+    "smartwh/robots/1/telemetry",
+    "smartwh/robots/1/task/command"
+);
+
+MQTTHandler handler(MqttConfig);
+
 bool moving = false;
 bool obstacle = false;
 
@@ -34,12 +45,23 @@ Task sensorTask([](){
 void setup() {
     Serial.begin(115200);
 
-    WiFi.begin("Orange_Swiatlowod_6A20", "YD4sd7fDuPiHSYCSQg");
+    // SET IN THE ENV VARIABLES!
+    WiFi.begin(WIFI_SSID, WIFI_PASS);
+
     while (WiFi.status() != WL_CONNECTED) {
         delay(500);
     }
     
     Serial.println("WiFi connected");
+
+    handler.Connect();
+
+    handler.Post(
+        "smartwh/robots/1/telemetry",
+        "{\"robotId\":1,\"stance\":1,\"batteryLevel\":80}",
+        1,
+        0
+    );
 
     sensorTask.Start("UlSo1", 2048, 1, 1);
 
@@ -59,8 +81,8 @@ void loop() {
     long dist = US1.GetDistance(); // Get "prev." distance
 
     if (dist <= 0) {
-        Serial.write("Sensor data read incorrectly");
-    } else if (dist < 30) {
+        // Serial.write("Sensor data read incorrectly");
+    } else if (dist < 40) {
         ROBOT.FullStop();
     } else {
         ROBOT.MoveForward();

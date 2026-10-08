@@ -32,10 +32,10 @@ This allows the backend to both react to live robot behavior and initiate robot 
   
 The current MQTT background service subscribes to:  
   
-| Topic | Meaning |  
-| :--- | :--- |  
-| `smartwh/robots/+/telemetry` | live robot telemetry updates |  
-| `smartwh/robots/+/task/update` | task-related robot updates |  
+| Topic                          | Meaning                      |     |
+| :----------------------------- | :--------------------------- | --- |
+| `smartwh/robots/+/telemetry`   | live robot telemetry updates |     |
+| `smartwh/robots/+/task/update` | task-related robot updates   |     |
   
 The `+` segment means the server listens for messages from multiple robots under the same topic structure.  
   
@@ -55,11 +55,11 @@ This topic is used after `DeliveryService` successfully starts delivery orchestr
   
 ## Topic categories  
   
-| Category | Topic pattern | Purpose | Processing priority |  
-| :--- | :--- | :--- | :--- |  
-| Telemetry | `smartwh/robots/+/telemetry` | runtime robot state updates | medium |  
-| Task updates | `smartwh/robots/+/task/update` | task execution events and task lifecycle progress | high |  
-| Task commands | `smartwh/robots/{robotId}/task/command` | outbound task command from server to robot | high |  
+| Category      | Topic pattern                           | Purpose                                           | Processing priority |     |
+| :------------ | :-------------------------------------- | :------------------------------------------------ | :------------------ | --- |
+| Telemetry     | `smartwh/robots/+/telemetry`            | runtime robot state updates                       | medium              |     |
+| Task updates  | `smartwh/robots/+/task/update`          | task execution events and task lifecycle progress | high                |     |
+| Task commands | `smartwh/robots/{robotId}/task/command` | outbound task command from server to robot        | high                |     |
   
 The topic split reflects that not all MQTT messages have the same backend importance.  
   

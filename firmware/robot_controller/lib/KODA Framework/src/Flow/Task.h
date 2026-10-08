@@ -1,7 +1,6 @@
 #ifndef TASK_H
 #include <freertos/FreeRTOS.h>
 #include <freertos/task.h>
-#include <atomic>
 #include <functional>
 #include <string>
 #define TASK_H

@@ -1,8 +1,7 @@
 #ifndef ULTRASONIC_H
-#define ULTRASONIC_H
-
 #include <Arduino.h>
 #include <atomic>
+#define ULTRASONIC_H
 
 class UltraSonic {
     uint8_t TRIGGER_PIN;
