@@ -1,17 +1,18 @@
 #ifndef MOTORDRIVER_H
-#include <cstdint>
 #define MOTORDRIVER_H
+#include <cstdint>
+#include "driver/gpio.h"
 
 class Motor{
-    uint8_t INF;
-    uint8_t INS;
+    gpio_num_t INF;
+    gpio_num_t INS;
     public:
         // Getters        
-        uint8_t GetFirstPin() const;
-        uint8_t GetSecondPin() const;
+        gpio_num_t GetFirstPin() const;
+        gpio_num_t GetSecondPin() const;
 
         // Declare constructor
-        Motor(int first, int second);
+        Motor(gpio_num_t first, gpio_num_t second);
 
         // Declare funcs
         void Init();

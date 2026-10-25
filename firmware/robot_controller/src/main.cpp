@@ -1,90 +1,112 @@
-#include <Arduino.h>
-#include <Core/RobotUtils.h>
-#include <Flow/Task.h>
+#include <cstring>
+
+#include "esp_log.h"
+#include "esp_event.h"
+#include "esp_netif.h"
+#include "nvs_flash.h"
+#include "esp_wifi.h"
+
+#include "freertos/FreeRTOS.h"
+#include "freertos/task.h"
+
+#include <Net/WiFiHandler.h>
 #include <Comm/MQTTHandler.h>
-#include <WiFi.h>
-// constexpr - must be init at compile time
-// const - in compile or runtime
-constexpr uint8_t TRIGGER_PIN = 42;
-constexpr uint8_t ECHO_PIN = 41;
-constexpr uint8_t IN1 = 4;
-constexpr uint8_t IN2 = 5;
-constexpr uint8_t IN3 = 6;
-constexpr uint8_t IN4 = 7;
+#include <Flow/Task.h>
+#include <Core/RobotUtils.h>
+#include <Drivers/MPU6050.h>
 
-Motor Left(IN1, IN2);
-Motor Right(IN3, IN4);
+// US
+constexpr gpio_num_t TRIGGER_PIN = GPIO_NUM_42;
+constexpr gpio_num_t ECHO_PIN = GPIO_NUM_41;
 
-UltraSonic US1(TRIGGER_PIN, ECHO_PIN);
+// Motors
+constexpr gpio_num_t IN1 = GPIO_NUM_4;
+constexpr gpio_num_t IN2 = GPIO_NUM_5;
+constexpr gpio_num_t IN3 = GPIO_NUM_6;
+constexpr gpio_num_t IN4 = GPIO_NUM_7;
 
-Robot ROBOT(Left, Right, US1);
+// MPU6050
+constexpr i2c_port_num_t I2C_PORT = I2C_NUM_0;
+constexpr gpio_num_t SDA = GPIO_NUM_21;
+constexpr gpio_num_t SCL = GPIO_NUM_47;
 
-MQTTConfig MqttConfig(
-    MQTT_BROCKER,
-    MQTT_PORT,
-    "DLU-01",
-    "smartwh/robots/1/telemetry",
-    "smartwh/robots/1/task/command"
-);
+const char* tel_topic = "smartwh/robots/1/telemetry";
+const char* task_topic = "smartwh/robots/1/task/update"; 
 
-MQTTHandler handler(MqttConfig);
+static const char* TAG = "main";
 
+Motor MLeft(IN1, IN2);
+Motor MRight(IN3, IN4);
+UltraSonic US(TRIGGER_PIN, ECHO_PIN);
+
+Task sensorTask([]{
+    TickType_t last = xTaskGetTickCount();  // this thingy is for carrying cycle work time for each iter
+    while (true) {
+        US.StartScan();
+        vTaskDelayUntil(&last, pdMS_TO_TICKS(60));  // every 60 ms (6 ticks)
+    }
+});
+
+Robot Mainframe(MLeft,MRight,US);
+
+// КОСТЫЛИ :D
+bool obst = false;
 bool moving = false;
-bool obstacle = false;
+long lastSonarTime = 0;
+// 
 
-// US Task
-Task sensorTask([](){
-        while (true) {
-            ulTaskNotifyTake(pdTRUE, portMAX_DELAY); 
-            // 1 arg is for "what to do when called while slept". Speaking widely - "Should i zero my counter or not"
-            // 2 is how long you will wait
-            US1.StartScan();
-        }
-    });
+constexpr long STOP_CM   = 20;
+constexpr long RESUME_CM = 25;
 
-void setup() {
-    Serial.begin(115200);
+// Entry-point
+extern "C" void app_main(void) {
+    vTaskDelay(pdMS_TO_TICKS(2000));
 
-    // SET IN THE ENV VARIABLES!
-    WiFi.begin(WIFI_SSID, WIFI_PASS);
-
-    while (WiFi.status() != WL_CONNECTED) {
-        delay(500);
-    }
+    Mainframe.Assemble();   // todo: return esp_err_t, so can be checked ESP_ERROR_CHECK(*);
+                            // But for now -> may the machine-god bless you
     
-    Serial.println("WiFi connected");
+    // Creating cfg
+    MPU6050Config cfg(I2C_PORT, SDA, SCL);
+    MPU6050 imu(cfg);
 
-    handler.Connect();
-
-    handler.Post(
-        "smartwh/robots/1/telemetry",
-        "{\"robotId\":1,\"stance\":1,\"batteryLevel\":80}",
-        1,
-        0
-    );
-
-    sensorTask.Start("UlSo1", 2048, 1, 1);
-
-    ROBOT.Assemble();
-}
-
-unsigned long lastSonarTrigger = 0;
-
-void loop() {
-    unsigned long currentMillis = millis();
-
-    if (currentMillis - lastSonarTrigger >= 60){
-        xTaskNotifyGive(sensorTask.GetHandle());
-        lastSonarTrigger = currentMillis;
+    if(imu.Init() != ESP_OK){
+        ESP_LOGE(TAG, "INIT FAILED");
+        return;
     }
 
-    long dist = US1.GetDistance(); // Get "prev." distance
+    static WiFiHandler wifi(WiFiConfig(WIFI_SSID, WIFI_PASS));
+    // Init sensortask
+    sensorTask.Start("US-T");
+    
+    ESP_ERROR_CHECK(wifi.Connect());
+    ESP_LOGI(TAG, "CONNECTED TO WIFI");
+    
+    static MQTTHandler mqtt(MQTTConfig(MQTT_BROCKER, MQTT_PORT, "1", tel_topic, task_topic));
+    ESP_ERROR_CHECK(mqtt.Connect());
+    ESP_LOGI(TAG, "INITIALISATION COMPLETE");
 
-    if (dist <= 0) {
-        // Serial.write("Sensor data read incorrectly");
-    } else if (dist < 40) {
-        ROBOT.FullStop();
-    } else {
-        ROBOT.MoveForward();
+    while (1){
+        // Vec3 a, g;
+        // if (imu.GetAccel(a) == ESP_OK && imu.GetGyro(g) == ESP_OK) {
+        //     ESP_LOGI("main", "a: %.2f %.2f %.2f | g: %.1f %.1f %.1f",
+        //              a.x, a.y, a.z, g.x, g.y, g.z);
+        // }
+
+        long dist = US.GetDistance();
+
+        if (dist < 0) {                      
+            if (moving) { Mainframe.FullStop(); moving = false; }
+            vTaskDelay(pdMS_TO_TICKS(100));
+            continue;   // THIS SKIPS THE DELAY FOR MPU!
+        }
+
+        if (moving && dist > 0 && dist <= STOP_CM) {
+            Mainframe.FullStop();
+            moving = false;
+        } else if (!moving && dist > RESUME_CM) {
+            Mainframe.MoveForward();
+            moving = true;
+        }
+        vTaskDelay(pdMS_TO_TICKS(100));
     }
 }

@@ -1,15 +1,18 @@
 #include <Core/RobotUtils.h>
 
-Robot::Robot(Motor& LMotor, Motor& RMotor, UltraSonic& US):
-    LeftMotor(LMotor.GetFirstPin(), LMotor.GetSecondPin()),
-    RightMotor(RMotor.GetFirstPin(), RMotor.GetSecondPin()),
-    US(US.GetTriggerPin(), US.GetEchoPin())
+Robot::Robot(Motor& LMotor, Motor& RMotor, UltraSonic& us):
+    LeftMotor(LMotor),
+    RightMotor(RMotor),
+    US(us)
     {}
 
 void Robot::Assemble(){
     LeftMotor.Init();
     RightMotor.Init();
-    US.Init();
+
+    UltraSonicPolicy policy = {};
+
+    US.Init(policy);
 }
 
 void Robot::MoveForward(){
@@ -22,8 +25,9 @@ void Robot::FullStop(){
     RightMotor.Stop();
 }
 
-long Robot::CheckDistance(){
-    return US.StartScan();
+long Robot::CheckDistance() {
+    US.StartScan();
+    return US.GetDistance();
 }
 
 void Robot::TurnLeft(){

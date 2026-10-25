@@ -1,30 +1,39 @@
 #include <Drivers/MotorDriver.h>
-#include <Arduino.h>
 
-Motor::Motor(int first, int second){
+Motor::Motor(gpio_num_t first, gpio_num_t second){
     INF = first;
     INS = second;
 }
 
-uint8_t Motor::GetFirstPin() const{
+gpio_num_t Motor::GetFirstPin() const{
     return INF;
 }
 
-uint8_t Motor::GetSecondPin() const{
+gpio_num_t Motor::GetSecondPin() const{
     return INS;
 }
 
 void Motor::Init(){
-    pinMode(INF, OUTPUT);
-    pinMode(INS, OUTPUT);
+    gpio_reset_pin(INF);
+    gpio_reset_pin(INS);
+
+    // dont need cfg as we got in UltraSonic. completely usless in this usecase 
+    gpio_config_t cfg = {};
+    cfg.pin_bit_mask = 1ULL << INF | 1ULL << INS;
+    cfg.mode = GPIO_MODE_OUTPUT;
+
+    ESP_ERROR_CHECK(gpio_config(&cfg));
+    // remember the safety
+    gpio_set_level(INF, 0);
+    gpio_set_level(INS, 0);
 }
 
 void Motor::Move(){
-    digitalWrite(INF, HIGH);
-    digitalWrite(INS, LOW);
+    gpio_set_level(INF, 1);
+    gpio_set_level(INS, 0);
 }
 
 void Motor::Stop(){
-    digitalWrite(INF, LOW);
-    digitalWrite(INS, LOW);
+    gpio_set_level(INF, 0);
+    gpio_set_level(INS, 0);
 }

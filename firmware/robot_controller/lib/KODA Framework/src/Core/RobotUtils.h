@@ -5,9 +5,9 @@
 #define ROBOTUTILS_H
 
 class Robot{
-    Motor LeftMotor;
-    Motor RightMotor;
-    UltraSonic US;
+    Motor& LeftMotor;
+    Motor& RightMotor;
+    UltraSonic& US;
     public:
         Robot(Motor& L, Motor& R, UltraSonic& US);
 

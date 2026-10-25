@@ -59,6 +59,7 @@ firmware/robot_controller/.vscode/.browse.c_cpp.db*
 firmware/robot_controller/.vscode/c_cpp_properties.json
 firmware/robot_controller/.vscode/launch.json
 firmware/robot_controller/.vscode/ipch
+firmware/robot_controller/sdkconfig.esp32-s3-devkitm-1
 
 # Obsidian
 docs/KODA/.obsidian

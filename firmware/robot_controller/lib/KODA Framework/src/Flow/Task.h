@@ -12,10 +12,6 @@ class Task{
     // Static adapter-method (FRTOS see this as C-func)
     static void TaskAdapter(void* pvParameters);
 
-    // ChangeLog:
-    // - Refactored asynchronous US block to allow manual function assignment
-    // - You can now explicitly define a target function based on the 'coreId'
-    // - Removed the previous constraints on this function to improve architectural flexibility
     virtual void Run() { if (_fn) _fn(); }
 
     public:

@@ -1,6 +1,6 @@
 #ifndef MQTT_HANDLER
 #include <mqtt_client.h>
-#include <Arduino.h>
+#include <atomic>
 #define MQTT_HANDLER
 
 // This is for automating mqtt 
@@ -33,19 +33,23 @@ class MQTTHandler{
         MQTTConfig _cfg;
         esp_mqtt_client_handle_t _client = nullptr;
 
-        static void eventTrampoline(
+        std::atomic<bool> _connected{false};
+
+        static void EventHandler(
             void* arg,
             esp_event_base_t base,
             int32_t event_id,
             void* data
         );
 
-        void onEvent(esp_mqtt_event_handle_t event);
+        void handleEvent(esp_mqtt_event_handle_t event);
     public:
         explicit MQTTHandler(const MQTTConfig& cfg) : _cfg(cfg) {}
 
         // Connect
-        bool Connect();
+        esp_err_t Connect();
+        bool IsConnected() const { return _connected; }
+
         // Handle all events
         void HandleEvents(esp_mqtt_event_handle_t event);
         // disconnect

@@ -1,29 +1,33 @@
 #ifndef ULTRASONIC_H
-#include <Arduino.h>
-#include <atomic>
 #define ULTRASONIC_H
+#include <atomic>
+#include "driver/gpio.h"
+#include "esp_attr.h"
+
+struct UltraSonicPolicy {
+    gpio_pullup_t   echo_pull_up   = GPIO_PULLUP_DISABLE;
+    gpio_pulldown_t echo_pull_down = GPIO_PULLDOWN_DISABLE;
+};
 
 class UltraSonic {
-    uint8_t TRIGGER_PIN;
-    uint8_t ECHO_PIN;
+    gpio_num_t TRIGGER_PIN;
+    gpio_num_t ECHO_PIN;
     
-    volatile unsigned long echoStartTime = 0;
+    std::atomic<int64_t>  echoStartTime{0};
     
-    std::atomic<long> currentDistance{0};
+    std::atomic<long> currentDistance{-1};
 
     // ISR
     static void IRAM_ATTR EchoISR(void* arg);
-
 public:
-    UltraSonic(uint8_t TRIG_PIN, uint8_t ECHO_PIN);
+    UltraSonic(gpio_num_t TRIG_PIN, gpio_num_t ECHO_PIN);
 
-    uint8_t GetTriggerPin();
-    uint8_t GetEchoPin();
+    gpio_num_t GetTriggerPin();
+    gpio_num_t GetEchoPin();
 
-    void Init();
-    void SendTrigg();
+    void Init(const UltraSonicPolicy &policy);
+    void StartScan();
     long GetDistance();
-    long StartScan();
 };
 
 #endif

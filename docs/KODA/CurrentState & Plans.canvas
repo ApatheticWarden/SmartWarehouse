@@ -1,0 +1,36 @@
+{
+	"nodes":[
+		{"id":"386ba835512491ef","type":"text","text":"Motors Basic","x":155,"y":-360,"width":250,"height":60,"color":"4"},
+		{"id":"c4615e20f2d2b03c","type":"text","text":"UltraSonic ISR","x":155,"y":-280,"width":250,"height":60,"color":"4"},
+		{"id":"6cd6823532364d01","type":"text","text":"WIFI First-steps","x":155,"y":-200,"width":250,"height":60,"color":"4"},
+		{"id":"52ee033585e8d944","type":"text","text":"MQTT First-steps","x":155,"y":-120,"width":250,"height":60,"color":"4"},
+		{"id":"e505548e9b785b10","type":"text","text":"HAL. Make an function that controls \"speed\" of motor. -255 0 255 - speed. Also make a differential move","x":560,"y":-370,"width":360,"height":80},
+		{"id":"264c36276523cf2e","x":560,"y":-280,"width":360,"height":60,"type":"text","text":"Testing and reducing losses + noise"},
+		{"id":"337eb534c9238e67","x":560,"y":-200,"width":360,"height":60,"type":"text","text":"Authentication, verifying, error handling. Connection loss behavior "},
+		{"id":"9831c1ba12c81db0","x":560,"y":-130,"width":360,"height":80,"type":"text","text":"Automation with telemetry and task handling. Json usage. Server -> robot / Robot -> server flow. Data and statistic acquiring"},
+		{"id":"9e6d90f54a67d3ad","type":"text","text":"FIRMWARE","x":155,"y":-460,"width":250,"height":63,"color":"1"},
+		{"id":"143b9b71d0c39622","type":"text","text":"SERVER","x":155,"y":-560,"width":250,"height":63,"color":"5"},
+		{"id":"51eb271a6f86ecbc","x":155,"y":-660,"width":250,"height":60,"color":"4","type":"text","text":"TaskService First-steps"},
+		{"id":"124c2b1c897b636a","type":"text","text":"\"First-steps\" - it connects and disconnects. Bare minimum","x":-90,"y":-560,"width":180,"height":163,"color":"2"},
+		{"id":"a3edef8c5d3dee2a","x":-125,"y":-700,"width":250,"height":50,"type":"text","text":"Backlog"},
+		{"id":"cb052a9dc03502e4","x":-125,"y":-638,"width":250,"height":50,"color":"6","type":"text","text":"Planned"},
+		{"id":"5f405c1cb8234374","x":-375,"y":-477,"width":250,"height":60,"color":"1","type":"text","text":"CHECK THE SERVER CODE!"},
+		{"id":"3e893e9dc32ed26a","x":-375,"y":-558,"width":250,"height":60,"color":"6","type":"text","text":"OFFTOP"},
+		{"id":"d1fba510ea16e052","x":-125,"y":-760,"width":250,"height":50,"color":"2","type":"text","text":"Working, not complete"},
+		{"id":"13fe878347ca42bb","x":-125,"y":-820,"width":250,"height":50,"color":"3","type":"text","text":"In process"},
+		{"id":"b7a4bac1d58e0ad6","x":-125,"y":-880,"width":250,"height":50,"color":"4","type":"text","text":"Done"},
+		{"id":"6885ee07f4a26885","x":155,"y":-730,"width":250,"height":60,"color":"4","type":"text","text":"TelemetryService First-steps"},
+		{"id":"9c384f0eced06fd0","x":155,"y":-870,"width":250,"height":60,"color":"4","type":"text","text":"DeliveryService  First-steps"},
+		{"id":"ba55d0962000a506","x":155,"y":-940,"width":250,"height":60,"color":"4","type":"text","text":"RobotService First-steps"},
+		{"id":"232c662ae70142d5","x":155,"y":-800,"width":250,"height":60,"color":"4","type":"text","text":"MQTT Services First-steps"}
+	],
+	"edges":[
+		{"id":"0522d1970700613c","fromNode":"386ba835512491ef","fromSide":"right","toNode":"e505548e9b785b10","toSide":"left","label":"NEXT"},
+		{"id":"44296b8a4fc79bca","fromNode":"c4615e20f2d2b03c","fromSide":"right","toNode":"264c36276523cf2e","toSide":"left","label":"NEXT"},
+		{"id":"6501d9800ca7744f","fromNode":"6cd6823532364d01","fromSide":"right","toNode":"337eb534c9238e67","toSide":"left","label":"NEXT"},
+		{"id":"582e3aea058a3557","fromNode":"52ee033585e8d944","fromSide":"right","toNode":"9831c1ba12c81db0","toSide":"left","label":"NEXT"},
+		{"id":"cd16a5200aeb2f6c","fromNode":"9e6d90f54a67d3ad","fromSide":"bottom","toNode":"386ba835512491ef","toSide":"top"},
+		{"id":"621115389d903904","fromNode":"143b9b71d0c39622","fromSide":"top","toNode":"51eb271a6f86ecbc","toSide":"bottom"},
+		{"id":"b38b8f1f5669c7f0","fromNode":"3e893e9dc32ed26a","fromSide":"bottom","toNode":"5f405c1cb8234374","toSide":"top"}
+	]
+}
